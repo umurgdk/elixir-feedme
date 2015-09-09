@@ -1,0 +1,2124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:atom="http://www.w3.org/2005/Atom" version="2.0" xmlns:media="http://search.yahoo.com/mrss/"><channel><title><![CDATA[collect {thoughts}]]></title><description><![CDATA[software is fun]]></description><link>http://blog.drewolson.org/</link><generator>Ghost 0.6</generator><lastBuildDate>Fri, 28 Aug 2015 18:56:00 GMT</lastBuildDate><atom:link href="http://blog.drewolson.org/rss/" rel="self" type="application/rss+xml"/><ttl>60</ttl><item><title><![CDATA[Elixir Streams]]></title><description><![CDATA[<p>I previously <a href="http://blog.drewolson.org/the-value-of-explicitness/">wrote</a> about explicitness in Elixir. One of my favorite ways the language embraces explicitness is in its distinction between eager and lazy operations on collections. Any time you use the <code>Enum</code> module, you're performing an eager operation. Your collection will be transformed/mapped/enumerated immediately. When you use</p>]]></description><link>http://blog.drewolson.org/elixir-streams/</link><guid isPermaLink="false">9b68a5a7-4ab0-420e-8105-0462357fa1f1</guid><category><![CDATA[elixir]]></category><dc:creator><![CDATA[Drew Olson]]></dc:creator><pubDate>Mon, 08 Jun 2015 13:43:05 GMT</pubDate><media:content url="http://blog.drewolson.org/content/images/2015/06/13059973525_9be2361614_h.jpg" medium="image"/><content:encoded><![CDATA[<img src="http://blog.drewolson.org/content/images/2015/06/13059973525_9be2361614_h.jpg" alt="Elixir Streams"><p>I previously <a href="http://blog.drewolson.org/the-value-of-explicitness/">wrote</a> about explicitness in Elixir. One of my favorite ways the language embraces explicitness is in its distinction between eager and lazy operations on collections. Any time you use the <code>Enum</code> module, you're performing an eager operation. Your collection will be transformed/mapped/enumerated immediately. When you use the <code>Stream</code> module, you're performing lazy operations.</p>
+
+<p>The <code>Stream</code> module provides many of the same operations as <code>Enum</code>, but when used with <code>Stream</code> they're describing future computations rather than actions to be taken immediately. Conveniently, all streams also implement the <code>Enumerable</code> protocol, meaning they can use any of the functions within <code>Enum</code>.</p>
+
+<p>You can realize a stream (eagerly forcing the computation to take place) by using any of the functions inside of <code>Enum</code>. Let's see some examples. The examples will be a mix of <code>iex</code> sessions and Elixir files to help demonstrate the concepts.</p>
+
+<h4 id="afewexamples">A Few Examples</h4>
+
+<p>Here's an extremely simple example of using the <code>Stream.map</code> function.</p>
+
+<pre><code class="language-bash">iex(1)&gt; [1, 2, 3] |&gt; Stream.map(&amp;(&amp;1 + 1))  
+#Stream&lt;[enum: [1, 2, 3], funs: [#Function&lt;45.29647706/1 in Stream.map/2&gt;]]&gt;
+</code></pre>
+
+<p>I've used an <code>iex</code> session because it helps to understand the return value. As you can see, a <code>Stream</code> struct is returned. The details are not important now, but you can see that it is storing functions to be applied in the future rather than actually performing any computation on the data immediately.</p>
+
+<p>We can force the computation using the <code>Enum.to_list</code> function.</p>
+
+<pre><code class="language-bash">iex(2)&gt; [1, 2, 3]  
+|&gt; Stream.map(&amp;(&amp;1 + 1))
+|&gt; Enum.to_list
+[2, 3, 4]
+</code></pre>
+
+<p>Let's look at another example that should give us more of an idea of the advantages streams provide over traditional collections. This time, we'll operate on a <code>Range</code>. In Elixir, ranges are implemented as streams, meaning we can build very large ranges without immediately realizing them.</p>
+
+<pre><code class="language-bash">iex(1)&gt; 1..1000000  
+|&gt; Stream.map(&amp;("This is number #{&amp;1}"))
+|&gt; Enum.take(2)
+["This is number 1", "This is number 2"]
+</code></pre>
+
+<p>The important thing to understand from this example is that we're using <code>Stream.map</code> to represent a transform on a range with 1,000,000 items but we're only ever performing the computation on 2 of them. The <code>Enum.take</code> function only asks for 2 items and this means the stream will only perform computation on the first 2 items in the range.</p>
+
+<p>This can be an extremely useful way to represent computation on very large (or even infinitely large) sets of data in a tractable way.</p>
+
+<p>Streams are composable, meaning we can perform an arbitrary number of computation stages efficiently on large collections.</p>
+
+<pre><code class="language-bash">iex(2)&gt; 1..1000000  
+|&gt; Stream.filter(&amp;Integer.is_even/1)
+|&gt; Stream.map(&amp;("This is number #{&amp;1}"))
+|&gt; Enum.take(2)
+["This is number 2", "This is number 4"]
+</code></pre>
+
+<h4 id="standardlibrarystreams">Standard Library Streams</h4>
+
+<p>Elixir's standard library provides several streams out of the box. We've already seen <code>Range</code>. Let's quickly discuss some other commonly used streams.</p>
+
+<p>The <code>File.stream!</code> function provides the lines (by default) or bytes of a file in the form a stream. This is a pleasant way to consume file data.</p>
+
+<pre><code class="language-elixir">"./my_file.txt"
+|&gt; File.stream!
+|&gt; Stream.map(&amp;String.strip/1)
+|&gt; Stream.with_index
+|&gt; Stream.map(fn {line, i} -&gt; "#{i}: #{line}" end)
+|&gt; Enum.take(1)
+|&gt; IO.inspect
+
+# =&gt; ["0: first line"]
+</code></pre>
+
+<p>This program lazily strips the newline from the end of each line of the file, adds the index at the beginning of each line, takes the first line and prints it. Because we've only asked for the first line, the file could be extremely large and our program would still be efficient.</p>
+
+<p>Another commonly used function that returns a stream is <code>IO.stream</code>. As you might expect, this provides a stream interface to things such as standard in. Let's make our previous program operate on standard in rather than a file.</p>
+
+<pre><code class="language-elixir">IO.stream(:stdio, :line)  
+|&gt; Stream.map(&amp;String.strip/1)
+|&gt; Stream.with_index
+|&gt; Stream.map(fn {line, i} -&gt; "#{i}: #{line}" end)
+|&gt; Enum.take(1)
+|&gt; IO.inspect
+
+# $ elixir foo.ex &lt; my_file.txt
+# ["0: first line"]
+</code></pre>
+
+<p>As a final example, the <code>GenEvent.stream</code> function creates a stream of events from a <code>GenEvent</code> manager. The details of <code>GenEvent</code> are beyond the scope of this post, so that's all we'll say on the subject of this function. If you're interested you can read more <a href="http://elixir-lang.org/docs/stable/elixir/GenEvent.html#stream/2">in the docs</a>.</p>
+
+<h4 id="streamconstruction">Stream Construction</h4>
+
+<p>We've just seen a few of the streams provided by Elixir's standard library. Elixir also provides several functions in the <code>Stream</code> module that allow you construct your own streams. Let's take a look at a few of them. We'll start with simple constructors and get progressively more complex.</p>
+
+<p><code>Stream.repeatedly</code> is a simple stream constructor that builds an infinite stream by calling the provided function each time an item is requested from the stream. Let's make an infinite stream of all <code>1</code>s.</p>
+
+<pre><code class="language-bash">iex(1)&gt; Stream.repeatedly(fn -&gt; 1 end) |&gt; Enum.take(5)  
+[1, 1, 1, 1, 1]
+</code></pre>
+
+<p>Next, there's <code>Stream.iterate</code>. This takes an initial value and a "generator" function. This function will be called with the previous item in the stream (starting with the initial value) and is expected to return the next item. We can make a stream of all the positive integers.</p>
+
+<pre><code class="language-bash">iex(1)&gt; Stream.iterate(1, &amp;(&amp;1 + 1)) |&gt; Enum.take(5)  
+[1, 2, 3, 4, 5]
+</code></pre>
+
+<p>Now, let's talk about <code>Stream.unfold</code>. This function is more complex but also allows creating more flexible streams. Unfold takes two arguments: an initial value for the "accumulator" and a generator function. The generator function will be called with the accumulator and is expected to return a tuple of <code>{next_element, new_accumulator}</code>. The <code>next_element</code> value represents the next item in the stream and the <code>new_accumulator</code> will be passed to the generator function on the subsequent call. Let's use <code>Stream.unfold</code> to make an infinite stream of the fibonacci sequence.</p>
+
+<pre><code class="language-elixir">fibs = Stream.unfold({1, 1}, fn {a, b} -&gt;  
+  {a, {b, a + b}}
+end)
+
+fibs  
+|&gt; Enum.take(10)
+|&gt; IO.inspect
+
+# =&gt; [1, 1, 2, 3, 5, 8, 13, 21, 34, 55]
+</code></pre>
+
+<p>Note that our accumulator represents two numbers in the sequence because we need both of these numbers to generate the next number.</p>
+
+<p>The last constructor function we'll look at is <code>Stream.resource</code>. This function is well suited to building streams around external resources. It is called by providing a "start function", a "next function" and an "after function". It's best understood with an example, so let's use it to wrap Github's API.</p>
+
+<h4 id="buildinganapiwithstreams">Building an API with Streams</h4>
+
+<p>Many of the resources provided by Github's API return paginated results. We want to make the pagination simple but efficient for the consumers of our library. It should be invisible but also only performed if actually need the results on a given page. First, let's create a Github gateway module that will be responsible for communicating with the Github API. We'll use <code>HTTPoison</code> for the HTTP communication.</p>
+
+<pre><code class="language-elixir">defmodule Github.Gateway do  
+  use HTTPoison.Base
+
+  @endpoint "https://github.com/api/v3"
+
+  def endpoint do
+    @endpoint
+  end
+
+  defp process_url(url) do
+    @endpoint &lt;&gt; url
+  end
+
+  defp process_request_headers(headers) do
+    headers ++ [
+      {"Authorization", "Basic #{:base64.encode(credentials)}"}
+    ]
+  end
+
+  defp credentials do
+    "#{config[:access_token]}:x-oauth-basic"
+  end
+
+  defp config do
+    Application.get_env(:house_keeper, __MODULE__)
+  end
+end  
+</code></pre>
+
+<p>Our gateway module assumes that we've configured our application with a personal access token.</p>
+
+<p>Responses from Github contain two attributes relevant to our API: the <code>Link</code> header and the request body. The <code>Link</code> header tells us about the next page of results (if any exists). The request body is a JSON serialized collection of results. Let's create a module that generates a <code>Stream</code> around the API response for a given a url. We'll use <code>Poison</code> for JSON parsing.</p>
+
+<pre><code class="language-elixir">defmodule Github.ResultStream do  
+  alias Github.Gateway
+
+  def new(url) do
+    Stream.resource(
+      fn -&gt; fetch_page(url) end,
+      &amp;process_page/1,
+      fn _ -&gt; end
+    )
+  end
+
+  defp fetch_page(url) do
+    response = Gateway.get!(url)
+    items = Poison.decode!(response.body)
+    links = parse_links(response.headers["Link"])
+
+    {items, links["next"]}
+  end
+
+  def parse_links(nil) do
+    %{}
+  end
+
+  def parse_links(links_string) do
+    links = String.split(links_string, ", ")
+
+    Enum.map(links, fn link -&gt;
+      [_,name] = Regex.run(~r{rel="([a-z]+)"}, link)
+      [_,url] = Regex.run(~r{&lt;([^&gt;]+)&gt;}, link)
+      short_url = String.replace(url, Gateway.endpoint, "")
+
+      {name, short_url}
+    end) |&gt; Enum.into(%{})
+  end
+
+  defp process_page({nil, nil}) do
+    {:halt, nil}
+  end
+
+  defp process_page({nil, next_page_url}) do
+    next_page_url
+    |&gt; fetch_page
+    |&gt; process_page
+  end
+
+  defp process_page({items, next_page_url}) do
+    {items, {nil, next_page_url}}
+  end
+end  
+</code></pre>
+
+<p>There's a lot of code here, so let's focus on it piece by piece.</p>
+
+<pre><code class="language-elixir">  def new(url) do
+    Stream.resource(
+      fn -&gt; fetch_page(url) end,
+      &amp;process_page/1,
+      fn _ -&gt; end
+    )
+  end
+</code></pre>
+
+<p>The <code>new</code> function returns a <code>Stream</code> built using the <code>Stream.resource</code> function. We provided it a "start function" that fetches the first page, a "next fuction" that processes each page and fetches a new page if necessary, and an empty "after function". Our "after function" is empty because there's nothing to clean up.</p>
+
+<p>Let's look at the <code>fetch_page</code> next.</p>
+
+<pre><code class="language-elixir">  defp fetch_page(url) do
+    response = Gateway.get!(url)
+    items = Poison.decode!(response.body)
+    links = parse_links(response.headers["Link"])
+
+    {items, links["next"]}
+  end
+</code></pre>
+
+<p><code>fetch_page</code> is our "start function". We use the <code>HTTPoison</code>-based gateway previously shown to fetch the url provided. We parse the JSON of the body with <code>Poison</code> and then parse the <code>Link</code> header into a map of <code>link name =&gt; url</code>. The details of the link parsing aren't very important.</p>
+
+<p>Finally, let's look at our "next_function" <code>process_page</code>.</p>
+
+<pre><code class="language-elixir">  defp process_page({nil, nil}) do
+    {:halt, nil}
+  end
+
+  defp process_page({nil, next_page_url}) do
+    next_page_url
+    |&gt; fetch_page
+    |&gt; process_page
+  end
+
+  defp process_page({items, next_page_url}) do
+    {items, {nil, next_page_url}}
+  end
+</code></pre>
+
+<p>The <code>process_page</code> function has three clauses. The clause to be executed is determined by the tuple passed to the function. This is known as pattern matching. Each clause is expected to return a tuple where the first element contains a list of items to add to the stream and the second item is the value of the accumulator for the next call to <code>process_page</code>. We'll look at each clause individually.</p>
+
+<pre><code class="language-elixir">  defp process_page({nil, nil}) do
+    {:halt, nil}
+  end
+</code></pre>
+
+<p>In the first clause, we handle the case where there are no items and no next link. This means we've reached the last page and added all the items to the stream. We should stop paginating, so we return the special value <code>:halt</code> that tells <code>Stream.resource</code> our stream has ended.</p>
+
+<pre><code>  defp process_page({nil, next_page_url}) do
+    next_page_url
+    |&gt; fetch_page
+    |&gt; process_page
+  end
+</code></pre>
+
+<p>The second clause is invoked in the case when we've consumed the items on a page and there is a non-nil next page link to follow. In this case, we fetch the next page and process it.</p>
+
+<pre><code class="language-elixir">  defp process_page({items, next_page_url}) do
+    {items, {nil, next_page_url}}
+  end
+</code></pre>
+
+<p>The third and final clause is the "normal" case because it is invoked when we have items to add to the stream. We return the items as the first element of the tuple, adding them to the stream. We then return the tuple <code>{nil, next_page_url}</code> as our accumulator, saying "I need more items and here's the next url to fetch".</p>
+
+<p>Ok, we've looked at all the code required to paginate Github API responses! This example is a little more advanced than the others we've seen, but it is a remarkably small amount of code to provide invisible, lazy pagination of arbitrary responses from the Github API.</p>
+
+<p>Finally, we'll use our <code>Github.ResultStream</code> module to expose a nice API to our users for fetching the repositories for an organization.</p>
+
+<pre><code class="language-elixir">defmodule Github do  
+  alias Github.ResultStream
+
+  def repos(organization) do
+    ResultStream.new("/orgs/#{organization}/repos")
+  end
+end  
+</code></pre>
+
+<p>We can use our new API to fetch the name of all the repositories for the <code>elixir-lang</code> organization.</p>
+
+<pre><code class="language-elixir">"elixir-lang"
+|&gt; Github.repos
+|&gt; Stream.map(fn repo -&gt; repo["full_name"] end)
+|&gt; Enum.take(1)
+
+# =&gt; ["elixir-lang/elixir"]
+</code></pre>
+
+<p>Remind yourself when reading this code that it is lazy, meaning we only consume the first page of results to get the first repository's name.</p>
+
+<p>This enumerable-like API allows our users to do familiar things with the results. For example, we could build a stream of the names of all the repositories for both the <code>elixir-lang</code> and <code>tryghost</code> organizations using <code>Stream.flat_map</code>.</p>
+
+<pre><code class="language-elixir">["elixir-lang", "tryghost"]
+|&gt; Stream.flat_map(&amp;Github.repos/1)
+|&gt; Stream.map(fn repo -&gt; repo["full_name"] end)
+|&gt; Enum.take(1)
+
+# =&gt; ["elixir-lang/elixir"]
+</code></pre>
+
+<p>Again, this is lazy and efficient in that it only paginates over the results as we need them. That's pretty amazing.</p>
+
+<h4 id="wrapup">Wrap Up</h4>
+
+<p>I hope this gives you a sense of the power and flexibility provided by Elixir's <code>Stream</code> facilities. Use them in your libraries!</p>]]></content:encoded></item><item><title><![CDATA[Sanity Tests]]></title><description><![CDATA[<p>It is common for test "classifications" to have a plethora of definitions. Sanity tests are no different. <a href="http://en.wikipedia.org/wiki/Sanity_testing">Wikipedia</a> says the following on the subject:</p>
+
+<blockquote>
+  <p>the sanity test [...] determines whether it is possible and reasonable to proceed with further testing. </p>
+</blockquote>
+
+<p>This implies that a sanity test is some sort of "pre-test"</p>]]></description><link>http://blog.drewolson.org/sanity-tests/</link><guid isPermaLink="false">fc1d5817-2d10-45fb-9fc3-544a17db047c</guid><category><![CDATA[elixir]]></category><category><![CDATA[software]]></category><dc:creator><![CDATA[Drew Olson]]></dc:creator><pubDate>Fri, 29 May 2015 15:22:33 GMT</pubDate><content:encoded><![CDATA[<p>It is common for test "classifications" to have a plethora of definitions. Sanity tests are no different. <a href="http://en.wikipedia.org/wiki/Sanity_testing">Wikipedia</a> says the following on the subject:</p>
+
+<blockquote>
+  <p>the sanity test [...] determines whether it is possible and reasonable to proceed with further testing. </p>
+</blockquote>
+
+<p>This implies that a sanity test is some sort of "pre-test" to determine if further testing even makes sense.</p>
+
+<p>I, however, think of sanity testing as breaking the fourth wall of the codebase. I believe sanity testing should test assumptions about the codebase itself rather than the behavior of the code.</p>
+
+<p>I've found sanity testing to be extremely useful both in saving time by allowing future contributors to avoid common pitfalls as well as codifying codebase conventions. Let's make the concept of sanity tests more explicit with a few examples from an <a href="https://elixir-lang.org">Elixir</a> codebase I've been working on recently.</p>
+
+<p>Note: my tests use the <a href="https://github.com/drewolson/ex_spec">ex_spec</a> library that adds a simple BDD-like syntax to <a href="http://elixir-lang.org/docs/stable/ex_unit/">ExUnit</a>.</p>
+
+<h4 id="freezingmigrations">Freezing Migrations</h4>
+
+<p>Many applications use libraries to interact with a database. These tools often provide facilities for codifying your database schema and for modifying it as time passes, a concept generally called "database migrations" or "migrations" for short. In Elixir, the <a href="https://github.com/elixir-lang/ecto">Ecto</a> library provides a migration feature similar to Rails' <a href="http://edgeguides.rubyonrails.org/active_record_migrations.html">ActiveRecord migrations</a>. Because these files live in your codebase and version control system, often several members of the team can be modifying a migration at the same time. That's fine as long as the migration has not yet been run in your production environment. If it has been run in production, however, we would like to ensure that the migration in our codebase <em>never</em> changes in the future. If we want to make changes to what that migration does we'll need to write a brand new migration to perform those changes.</p>
+
+<p>We can write a sanity test to enforce this rule.</p>
+
+<pre><code class="language-elixir">defmodule MyApp.SanityTest do  
+  use ExSpec
+
+  @migration_hashes %{
+    "00100_release_1_00.exs"  =&gt; "de1a663896925fb53abc0341eb5ca414",
+    "00200_release_2_00.exs"  =&gt; "823cc2738e1e43f2dbfe3ffc4b26fb8f",
+    "00300_release_3_00.exs"  =&gt; "b417b004600b4dd3518f5708aebf6262",
+    "00400_release_4_00.exs"  =&gt; "51b1ec3944d4875b217a7167d9cd6571",
+    "00500_release_5_00.exs"  =&gt; "91e0173099631350ec4c40624b5bc862",
+  }
+
+  describe "frozen migrations" do
+    it "will not change after being deployed" do
+      glob = Path.join([
+        __DIR__,
+        "..",
+        "..",
+        "priv",
+        "repo",
+        "migrations",
+        "*"
+      ])
+
+      Enum.each(Path.wildcard(glob), fn file_name -&gt;
+        file = Path.basename(file_name)
+        expected_hash = @migration_hashes[file]
+
+        if expected_hash do
+          hash = file_name |&gt; File.read! |&gt; md5
+
+          assert hash == expected_hash
+        end
+      end)
+    end
+  end
+
+  defp md5(s) do
+    :crypto.hash(:md5, s)
+    |&gt; :erlang.binary_to_list
+    |&gt; Enum.map(&amp;(:io_lib.format("~2.16.0b", [&amp;1])))
+    |&gt; List.flatten
+    |&gt; :erlang.list_to_bitstring
+   end
+end  
+</code></pre>
+
+<p>This test iterates over all migrations within <code>priv/repo/migrations</code> and, if the filename is specified in <code>@migration_hashes</code>, it verifies that the md5 of the file contents is the expected value. When a new release of the project is created, any migrations that are released will be added to the <code>@migration_hashes</code> map. If a team member accidentally modifies a migration that has already been deployed, the test will fail and they'll be gently reminded to create a new migration.</p>
+
+<h4 id="validtestfiles">Valid Test Files</h4>
+
+<p>More than once I've accidentally created a test file in my Elixir application's <code>test</code> directory that isn't named properly. I'll either forget to end my test filename with <code>_test.exs</code> or I'll remember the correct filename but accidentally use the <code>.ex</code> extension rather than <code>.exs</code>. These errors are particularly painful because they manifest themselves by simply not running your tests in that file. This is a prime candidate for a sanity test. Let's write one.</p>
+
+<pre><code class="language-elixir">defmodule MyApp.SanityTest do  
+  use ExSpec
+
+  describe "test files" do
+    it "checks that all test files are named properly" do
+      exclusions = ~w(
+        test_helper.exs
+      )
+
+      test_glob = Path.join([__DIR__, "..", "**", "*"])
+
+      bad_files = test_glob
+      |&gt; Path.wildcard
+      |&gt; Enum.map(&amp;Path.expand/1)
+      |&gt; Enum.reject(&amp;File.dir?(&amp;1))
+      |&gt; Enum.reject(&amp;String.ends_with?(&amp;1, "_test.exs"))
+      |&gt; Enum.reject(fn path -&gt;
+        Enum.any?(exclusions, &amp;matches?(path, &amp;1))
+      end)
+
+      assert bad_files == []
+    end
+  end
+
+  defp matches?(string, pattern) when is_binary(pattern) do
+    String.ends_with?(string, pattern)
+  end
+
+  defp matches?(string, pattern) do
+    String.match?(string, pattern)
+  end
+end  
+</code></pre>
+
+<p>Here we find all of our test files and then exclude any that are properly named (ending in <code>_test.exs</code>). We also exclude any files that are explicitly named in our <code>exclusions</code> list. Our exclusions can either be string literals that (specifying explicitly the end of the excluded file's name) or regexs that can match any number of files. This allows us to exclude files from our test like <code>test_helper.exs</code> which should not follow the convention of ending in <code>_test.exs</code>. If we accidentally add a test file with a malformed name this sanity will fail, saving us countless hours and lots of frustration.</p>
+
+<h4 id="usethem">Use Them!</h4>
+
+<p>I hope these two examples convey the usefulness of sanity tests as both tools for saving time as well as conveying patterns and idioms. Next time you think to yourself "I can't believe I did that again", consider writing a sanity test to stop yourself from making the same mistake in the future.</p>]]></content:encoded></item><item><title><![CDATA[The Value of Explicitness]]></title><description><![CDATA[<p>Elixir is often compared to Ruby. It's true that Elixir takes inspiration from Ruby's syntax. One of Elixir's core tenets is "metaprogramming", something often associated with Ruby and its ecosystem. That said, after using Elixir for a small amount of time it is immediately obvious that the semantics of the</p>]]></description><link>http://blog.drewolson.org/the-value-of-explicitness/</link><guid isPermaLink="false">334a24ff-d3fb-48db-8007-54285959901e</guid><category><![CDATA[elixir]]></category><dc:creator><![CDATA[Drew Olson]]></dc:creator><pubDate>Fri, 03 Apr 2015 16:19:35 GMT</pubDate><content:encoded><![CDATA[<p>Elixir is often compared to Ruby. It's true that Elixir takes inspiration from Ruby's syntax. One of Elixir's core tenets is "metaprogramming", something often associated with Ruby and its ecosystem. That said, after using Elixir for a small amount of time it is immediately obvious that the semantics of the languages are very different. More subtly, Elixir focuses on explicitness where Ruby is often implicit. In this blog post, I'll discuss Elixir's approach to composing functionality in an explicit manner.</p>
+
+<h4 id="buildingblocks">Building Blocks</h4>
+
+<p>The building blocks of Elixir applications are straightforward; modules, functions and macros. Modules are simply a namespaced bucket where functions or macros are defined. </p>
+
+<pre><code class="language-elixir">defmodule Foo do  
+  def add(a, b) do
+    a + b
+  end
+end  
+</code></pre>
+
+<p>We can call functions in a module by qualifying the function with the module name.</p>
+
+<pre><code class="language-elixir">Foo.add(1, 2)  
+# =&gt; 3
+</code></pre>
+
+<p>This is true within other modules as well.</p>
+
+<pre><code class="language-elixir">defmodule Bar do  
+  def add(a, b, c) do
+    x = Foo.add(a, b)
+    Foo.add(x, c)
+  end
+end
+
+Bar.add(1, 2, 3)  
+# =&gt; 6
+</code></pre>
+
+<p>Functions within a module can make unqualified calls to other functions within that same module.</p>
+
+<pre><code class="language-elixir">defmodule Bar do  
+  def a do
+    1
+  end
+
+  def b do
+    a + 2
+  end
+end
+
+Bar.b  
+# =&gt; 3
+</code></pre>
+
+<p>If we'd like to use macros from module <code>Foo</code> within <code>Bar</code>, we must first <code>require</code> it.</p>
+
+<pre><code class="language-elixir">defmodule Foo do  
+  defmacro greeter(message) do
+    quote do
+      def greet() do
+        unquote(message)
+      end
+    end
+  end
+end
+
+defmodule Bar do  
+  require Foo
+
+  Foo.greeter("hello, world!")
+end
+
+Bar.greet  
+# =&gt; "hello, world!"
+</code></pre>
+
+<h4 id="reducingverbosity">Reducing Verbosity</h4>
+
+<p>If our module <code>Bar</code> is making heavy use of functions/macros in <code>Foo</code>, it can be tedious to always qualify those calls. <code>import</code> solves this problem.</p>
+
+<pre><code class="language-elixir">defmodule Foo do  
+  defmacro greeter(message) do
+    quote do
+      def greet() do
+        unquote(message)
+      end
+    end
+  end
+
+  def first do
+    1
+  end
+
+  def second do
+    2
+  end
+end
+
+defmodule Bar do  
+  import Foo
+
+  greeter("hello, world!")
+
+  def sum do
+    first + second
+  end
+end
+
+Bar.greet  
+# =&gt; "hello, world!"
+
+Bar.sum  
+# =&gt; 3
+
+Bar.first  
+# =&gt; this will error
+</code></pre>
+
+<p>Note that while we can now make unqualified calls to functions to <code>Foo</code> inside <code>Bar</code>, the <code>import</code> is explicit. It is also important to recognize that <code>Bar</code> does not expose <code>Foo</code>'s functions externally even though we've <code>import</code>ed it.</p>
+
+<p>We can also <code>import</code> a subset of functions from <code>Foo</code> by providing of list of function names and arities.</p>
+
+<pre><code class="language-elixir">defmodule Bar do  
+  import Foo, only: [first: 0]
+
+  def increment do
+    first + 1
+  end
+end
+
+Bar.increment  
+# =&gt; 2
+</code></pre>
+
+<h4 id="moreflexibility">More Flexibility</h4>
+
+<p>There are cases where we'd like to give module <code>Foo</code> the ability to inline some code into our module <code>Bar</code>. This would let us do things like setup DSLs, abstract more complicated import graphs, etc.</p>
+
+<p>As an example, suppose we want to be able to write code like this:</p>
+
+<pre><code class="language-elixir">defmodule Add do  
+  def add(a, b) do
+    a + b
+  end
+end
+
+defmodule Multiply do  
+  def multiply(a, b) do
+    a * b
+  end
+end
+
+defmodule Rectangle do  
+  import Add
+  import Multiply
+
+  def area(a, b) do
+    multiply(a, b)
+  end
+
+  def perimeter(a, b) do
+    multiply(add(a, b), 2)
+  end
+end
+
+Rectangle.area(2, 3)  
+# =&gt; 6
+
+Rectangle.perimeter(2, 3)  
+# =&gt; 10
+</code></pre>
+
+<p>This works, but it's a pain to import both the <code>Add</code> and <code>Multiply</code> modules. Let's make a <code>Math</code> module that does the hard work for us.</p>
+
+<pre><code class="language-elixir">defmodule Math do  
+  defmacro import_deps do
+    quote do
+      import Add
+      import Multiply
+    end
+  end
+end
+
+defmodule Rectangle do  
+  require Math
+  Math.import_deps
+
+  def area(a, b) do
+    multiply(a, b)
+  end
+
+  def perimeter(a, b) do
+    multiply(add(a, b), 2)
+  end
+end  
+</code></pre>
+
+<p>Great! We've essentially inlined the code in <code>Math.import_deps</code> into our <code>Rectangle</code> module, but it's all still explicit. This pattern is common enough that Elixir introduces <code>use</code>. <code>use</code> will require the provided module and then call the <code>__using__</code> macro. Let's rewrite the code above.</p>
+
+<pre><code class="language-elixir">defmodule Math do  
+  defmacro __using__(_opts) do
+    quote do
+      import Add
+      import Multiply
+    end
+  end
+end
+
+defmodule Rectangle do  
+  use Math
+
+  def area(a, b) do
+    multiply(a, b)
+  end
+
+  def perimeter(a, b) do
+    multiply(add(a, b), 2)
+  end
+end  
+</code></pre>
+
+<p>It's important to stop and recognize how powerful this pattern is. Because <code>__using__</code> is a macro, we have a lot of flexibility. We can import other modules, call functions, call macros, etc. And yet, it's all explicit.</p>
+
+<h4 id="wrappingup">Wrapping Up</h4>
+
+<p>Given what we now know, any time we see an unqualified function/macro call in a module, one of the following is true:</p>
+
+<ul>
+<li>The function/macro is defined in the same module</li>
+<li>The function/macro has been <code>import</code>ed from another module</li>
+<li>A module we've <code>use</code>d has imported the function/macro or defined it</li>
+</ul>
+
+<p>Of course there can be a deep hierarchy of <code>import</code>s and <code>use</code>s, but they're all traceable. We're left with an explicit system for composing functionality that is powerful, flexible and easy to reason about.</p>]]></content:encoded></item><item><title><![CDATA[An Empathetic Functional Language]]></title><description><![CDATA[<p>I've been writing Elixir code for over a year. Never have I been more excited about the prospects of the language and its community. The language is young but very promising. Many smart people are getting involved. There's a hell of a trajectory here for a language that released 1.</p>]]></description><link>http://blog.drewolson.org/an-empathetic-functional-language/</link><guid isPermaLink="false">bc38cfbd-490e-437c-8c70-34484969822d</guid><category><![CDATA[elixir]]></category><dc:creator><![CDATA[Drew Olson]]></dc:creator><pubDate>Fri, 20 Mar 2015 15:36:36 GMT</pubDate><content:encoded><![CDATA[<p>I've been writing Elixir code for over a year. Never have I been more excited about the prospects of the language and its community. The language is young but very promising. Many smart people are getting involved. There's a hell of a trajectory here for a language that released 1.0 merely 6 months ago.</p>
+
+<p>I've been wondering what is it specifically about Elixir that has pulled me in and prompted my involvement in the community. In a word, it's empathy. More specifically, empathy for the user.</p>
+
+<p>This empathy is demonstrated in a variety of ways. Many have been extensively discussed: the <a href="http://en.wikipedia.org/wiki/Elixir_(programming_language)#Examples">natural syntax</a>, the <a href="irc://irc.freenode.net/elixir-lang">inviting community</a>, the <a href="https://github.com/josevalim">extraordinarily involved creator</a> and <a href="http://elixir-lang.org/getting-started/mix-otp/introduction-to-mix.html">the</a> <a href="https://hex.pm">tooling</a>. I'd like to discuss something different that's only becoming apparent to me now, after significant time using the language.</p>
+
+<h4 id="peelingtheonion">Peeling the Onion</h4>
+
+<p>One of the most powerful ways Elixir shows empathy to the user is by creating layers of abstraction. A natural path for learning the language emerges via these layers, which slowly introduces the new user to increasingly different, challenging and powerful concepts.</p>
+
+<p>Why is this interesting? After all, many languages succeed at teaching newcomers and guiding them through the learning process. I believe it is interesting because Elixir also possesses many characteristics that are traditionally thought of as challenging. Elixir is a functional language; there is no state (though there are patterns for representing state-like things). It is a concurrent language that uses the actor model and message passing. It is homoiconic. And yet, even with these "difficult" and "advanced" features, the language manages to make the learning process feel natural. Let's talk about a concrete example -- me.</p>
+
+<p>I dove into Elixir the way many do, via its interactive shell <code>iex</code>. This allowed me to toy around with the syntax, call some functions and define simple modules.</p>
+
+<p>Next, I created some standalone files. Elixir conveniently provides the <code>*.exs</code> extension for scripts to be run directly (compilation happens inline). This let me try more complex ideas and even build some little scripts to do real jobs.</p>
+
+<p>After this, I created a project with the standard directory structure and used some dependencies (provided by <code>mix</code> and <code>hex</code>). All this time, I had yet to dip my toes into the terrifying water known as <a href="https://github.com/erlang/otp">OTP</a>.</p>
+
+<p>Finally, with confidence from my earlier successes, I started reading about and working with the OTP concepts that Elixir provides (borrowing or wrapping the same concepts from Erlang). I was successful here even though I had failed in my previous attempt to learn OTP in Erlang. Why? As my confidence grew with Elixir I had more tools and support to remain steadfast in the face of truly new concepts.</p>
+
+<p>I still don't write many macros, but luckily there's a <a href="https://pragprog.com/book/cmelixir/metaprogramming-elixir">great book</a> available.</p>
+
+<p>The empathy of the language was ever-present with me through my learning process. Standard libraries were clear and well documented, the community was helpful and there were many great learning resources. But, more fundamentally, the language never seemed to force me to learn too many new things at once. Each time I pushed further with the language, it asked an appropriate amount from me in return. These small challenges always seemed to give me more in return than the investment I put into learning them. This positive reinforcement cycle is both exhilarating and empowering. What a ride.</p>
+
+<h4 id="rubbermeetstheroad">Rubber Meets the Road</h4>
+
+<p>This empathetic reinforcement cycle manifests itself in the Elixir community in many ways. The language and project structure allow individuals to participate in a project that heavily relies on OTP without knowing a single thing about it. Elixir projects tend to use OTP as the backbone for building more familiar abstractions that are easier for the broad spectrum of developers to comprehend and work with. They provide patterns that newcomers can comprehend quickly and use to make meaningful contributions to exciting tools for the community.</p>
+
+<p>It's hard not to be positive about a language when you're helping to push it forward within weeks of getting involved.</p>
+
+<p>I built a small internal application at <a href="https://www.braintreepayments.com">work</a> in Elixir and I've been surprised by the number of contributions from my teammates. Some have deep experience with functional languages while others have never used a functional language before.</p>
+
+<p>Elixir allowed me to provide simple, clear and familiar patterns that willing contributors could follow regardless of their prior programming paradigm experiences.</p>
+
+<p>The best part, though, is that once the hook is set it becomes exciting and challenging to learn about the more complex and powerful aspects of functional programming. Elixir is not a watered-down functional programming language, quite the opposite. Its focus on empathy in concert with these attributes, however, feels unique and wonderful to me.</p>
+
+<p>Update: I removed references to Elixir being a "pure" functional language.</p>]]></content:encoded></item><item><title><![CDATA[Pagination with Phoenix & Ecto]]></title><description><![CDATA[<p>I've been working on a web application built in Elixir. I'm using <a href="http://www.phoenixframework.org/">Phoenix</a> as the web framework and <a href="https://github.com/elixir-lang/ecto">Ecto</a> to talk to my database. As the amount of data in the application grew, I needed to paginate some of the views. I wasn't able to find an existing pagination solution</p>]]></description><link>http://blog.drewolson.org/pagination-with-phoenix-ecto/</link><guid isPermaLink="false">15e88321-4634-4cc3-a113-c2ae863a222d</guid><category><![CDATA[elixir]]></category><category><![CDATA[phoenix]]></category><category><![CDATA[ecto]]></category><dc:creator><![CDATA[Drew Olson]]></dc:creator><pubDate>Fri, 20 Feb 2015 17:17:14 GMT</pubDate><content:encoded><![CDATA[<p>I've been working on a web application built in Elixir. I'm using <a href="http://www.phoenixframework.org/">Phoenix</a> as the web framework and <a href="https://github.com/elixir-lang/ecto">Ecto</a> to talk to my database. As the amount of data in the application grew, I needed to paginate some of the views. I wasn't able to find an existing pagination solution for these tools so I ended up building my own. This post will discuss what I built.</p>
+
+<h4 id="goal">Goal</h4>
+
+<p>Once we're done, we should be able to paginate any Ecto query using parameters provided by a Phoenix controller action. I'm going to assume you're familiar with building composable Ecto queries. If you aren't, <a href="http://blog.drewolson.org/composable-queries-ecto/">read this post</a>. </p>
+
+<p>Let's assume we have a post model.</p>
+
+<pre><code class="language-elixir">defmodule Post do  
+  use Ecto.Model
+
+  schema "posts" do
+    field :name, :string
+    field :content, :string
+    field :published, :boolean
+  end
+
+  def published(query) do
+    query |&gt; where([p], p.published == true)
+  end
+
+  def order_by_name(query) do
+    from p in query,
+    order_by: [asc: p.name]
+  end
+end  
+</code></pre>
+
+<p>Let's also assume we have an Ecto repository.</p>
+
+<pre><code class="language-elixir">defmodule Repo do  
+  use Ecto.Repo, ...
+end  
+</code></pre>
+
+<p>Our API for the pagination should accept an Ecto query and a map of options representing the params from a Phoenix controller. The options may provide the <code>page</code> key (defaulting to 1) and the <code>page_size</code> key (defaulting to 10). When we're done, we should be able to write the following code.</p>
+
+<pre><code class="language-elixir">defmodule PostController do  
+  use Phoenix.Controller
+
+  def index(conn, params) do
+    paginator = Post
+    |&gt; Post.published
+    |&gt; Post.order_by_name
+    |&gt; Paginator.new(params)
+
+    render conn, :index,
+      posts: paginator.entries,
+      page_number: paginator.page_number,
+      page_size: paginator.page_size,
+      total_pages: paginator.total_pages
+  end
+end  
+</code></pre>
+
+<h4 id="buildingthepaginator">Building the Paginator</h4>
+
+<p>Here's a skeleton module to kick things off.</p>
+
+<pre><code class="language-elixir">defmodule Paginator do  
+  defstruct [:entries, :page_number, :page_size, :total_pages]
+
+  def new(query, params) do
+    %Paginator{
+      entries: [],
+      page_number: 0,
+      page_size: 0,
+      total_pages: 0
+    }
+  end
+end  
+</code></pre>
+
+<p>Ok, so we've got some dummy data and a struct that we're going to return. Let's start by calculating the current page of entries. We'll do this by adding a <code>limit</code> and <code>offset</code> to our Ecto query based on the page size and page number.</p>
+
+<pre><code class="language-elixir">defmodule Paginator do  
+  defstruct [:entries, :page_number, :page_size, :total_pages]
+
+  def new(query, params) do
+    page_number = params |&gt; Dict.get("page", 1) |&gt; to_int
+    page_size = params |&gt; Dict.get("page_size", 10) |&gt; to_int
+
+    %Paginator{
+      entries: entries(query, page_number, page_size),
+      page_number: page_number,
+      page_size: page_size,
+      total_pages: 0
+    }
+  end
+
+  defp entries(query, page_number, page_size) do
+    offset = page_size * (page_number - 1)
+
+    query
+    |&gt; limit([_], ^page_size)
+    |&gt; offset([_], ^offset)
+    |&gt; Repo.all
+  end
+
+  defp to_int(i) when is_integer(i), do: i
+  defp to_int(s) when is_binary(s) do
+    case Integer.parse(s) do
+      {i, _} -&gt; i
+      :error -&gt; :error
+    end
+  end
+end  
+</code></pre>
+
+<p>To build the entries, we determing the offset by multiplying the page size by the current page number. We then limit the number of results returned to the page size. Finally, we fetch the results using our Ecto Repo. We also added a helper function <code>to_int</code> so that we can deal with string values provided by the params.</p>
+
+<p>Now, all that's left is calculating the <code>total_pages</code>. Let's do it.</p>
+
+<pre><code class="language-elixir">defmodule Paginator do  
+  defstruct [:entries, :page_number, :page_size, :total_pages]
+
+  def new(query, params) do
+    page_number = params |&gt; Dict.get("page", 1) |&gt; to_int
+    page_size = params |&gt; Dict.get("page_size", 10) |&gt; to_int
+
+    %Paginator{
+      entries: entries(query, page_number, page_size),
+      page_number: page_number,
+      page_size: page_size,
+      total_pages: total_pages(query, page_size)
+    }
+  end
+
+  defp ceiling(float) do
+    t = trunc(float)
+
+    case float - t do
+      neg when neg &lt; 0 -&gt;
+        t
+      pos when pos &gt; 0 -&gt;
+        t + 1
+      _ -&gt; t
+    end
+  end
+
+  defp entries(query, page_number, page_size) do
+    offset = page_size * (page_number - 1)
+
+    query
+    |&gt; limit([_], ^page_size)
+    |&gt; offset([_], ^offset)
+    |&gt; Repo.all
+  end
+
+  defp to_int(i) when is_integer(i), do: i
+  defp to_int(s) when is_binary(s) do
+    case Integer.parse(s) do
+      {i, _} -&gt; i
+      :error -&gt; :error
+    end
+  end
+
+  defp total_pages(query, page_size) do
+    count = query
+    |&gt; exclude(:order_by)
+    |&gt; exclude(:preload)
+    |&gt; exclude(:select)
+    |&gt; select([e], count(e.id))
+    |&gt; Repo.one
+
+    ceiling(count / page_size)
+  end
+end  
+</code></pre>
+
+<p>We need to do a few things to calcuate our total pages. First, we exclude any non-countable components of the query (including <code>order_by</code>, <code>preload</code>, <code>select</code>, etc). We then add a <code>select</code> statement to grab the count. Finally, we divide the count by the <code>page_size</code> and calling <code>ceiling</code> on the result.</p>
+
+<p>And that's it! We can now paginate our Ecto queries.</p>
+
+<h4 id="wrapup">Wrap Up</h4>
+
+<p>I hope this deep-dive was helpful in understanding pagination in Ecto and Phoenix applications. If you're interested in using this in your application, I've released a more robust hex package for Ecto pagination called <a href="https://hex.pm/packages/scrivener">Scrivener</a>.</p>]]></content:encoded></item><item><title><![CDATA[Composable Queries with Ecto]]></title><description><![CDATA[<p>In my <a href="http://blog.drewolson.org/blog/2015/01/19/building-an-elixir-web-app/">previous post</a> I briefly covered some lessons I'd learned while building a (kind of real) web app in Elixir. Today, I'd like to take an in-depth look at composable queries in <a href="https://github.com/elixir-lang/ecto">Ecto</a>. First, a brief introduction to Ecto.</p>
+
+<h3 id="whatisecto">What is Ecto?</h3>
+
+<p>I think of Ecto as a light-weight</p>]]></description><link>http://blog.drewolson.org/composable-queries-ecto/</link><guid isPermaLink="false">f7b7c9eb-5074-4c2c-bcf8-c11078ec6cec</guid><category><![CDATA[elixir]]></category><dc:creator><![CDATA[Drew Olson]]></dc:creator><pubDate>Fri, 23 Jan 2015 18:00:00 GMT</pubDate><content:encoded><![CDATA[<p>In my <a href="http://blog.drewolson.org/blog/2015/01/19/building-an-elixir-web-app/">previous post</a> I briefly covered some lessons I'd learned while building a (kind of real) web app in Elixir. Today, I'd like to take an in-depth look at composable queries in <a href="https://github.com/elixir-lang/ecto">Ecto</a>. First, a brief introduction to Ecto.</p>
+
+<h3 id="whatisecto">What is Ecto?</h3>
+
+<p>I think of Ecto as a light-weight ORM. Ecto uses Elixir structs to represent database tables and provides a DSL for building and executing database queries. Because I'm boring, we're going to use the ages-old "post has many comments" example to demonstrate Ecto's capabilities. We'll assume we have the following models.</p>
+
+<pre><code class="language-elixir">defmodule MyApp.Post do  
+  use Ecto.Model
+  import Ecto.Query
+
+  schema "posts" do
+    field :body, :string
+    field :published, :boolean
+    field :published_at, :datetime
+    field :title, :string
+
+    has_many :comments, MyApp.Comment
+  end
+end  
+</code></pre>
+
+<pre><code class="language-elixir">defmodule MyApp.Comment do  
+  use Ecto.Model
+  import Ecto.Query
+
+  schema "comments" do
+    field :commenter, :string
+    field :title, :string
+    field :votes, :integer
+
+    belongs_to :post, MyApp.Post
+  end
+end  
+</code></pre>
+
+<h3 id="queryingwithecto">Querying with Ecto</h3>
+
+<p>Ecto provides two styles of querying syntax: keyword query syntax and query expressions. Note that in both query styles, the construction of the query is a distinct and separate process from the execution on the query. In each style, a constructed query is passed to the application's <code>Repo</code> to be executed.</p>
+
+<h4 id="keywordquerysyntax">Keyword Query Syntax</h4>
+
+<p>Keyword query syntax closely mirrors SQL and feels a lot like LINQ. I'll demonstrate using some example queries.</p>
+
+<p><strong>Select all posts</strong></p>
+
+<pre><code class="language-elixir">MyApp.Repo.all(  
+  from p in MyApp.Post,
+  select: p
+)
+</code></pre>
+
+<p><strong>Select all published posts</strong></p>
+
+<pre><code class="language-elixir">MyApp.Repo.all(  
+  from p in MyApp.Post,
+   where: p.published == true,
+  select: p
+)
+</code></pre>
+
+<p><strong>Select all comments for post 1</strong></p>
+
+<pre><code class="language-elixir">MyApp.Repo.all(  
+  from c in MyApp.Comment,
+    join: p in assoc(c, :post),
+   where: p.id == 1,
+  select: c
+)
+</code></pre>
+
+<h4 id="queryexpressions">Query Expressions</h4>
+
+<p>Query expressions follow the pipeline concept often seen in Elixir APIs. It is important to note that these queries all start with the model module (e.g. <code>MyApp.Post</code>). The model itself is a queryable object that represents all items in the given table. Here are the same examples using query expressions.</p>
+
+<p><strong>Select all posts</strong></p>
+
+<pre><code class="language-elixir">MyApp.Post |&gt; MyApp.Repo.all  
+</code></pre>
+
+<p><strong>Select all published posts</strong></p>
+
+<pre><code class="language-elixir">MyApp.Post  
+|&gt; where([p], p.published == true)
+|&gt; MyApp.Repo.all
+</code></pre>
+
+<p><strong>Select all comments for post 1</strong></p>
+
+<pre><code class="language-elixir">MyApp.Comment  
+|&gt; join(:left, [c], p in assoc(c, :post))
+|&gt; where([_, p], p.id == 1)
+|&gt; select([c, _], c)
+|&gt; MyApp.Repo.all
+</code></pre>
+
+<h3 id="querycomposition">Query Composition</h3>
+
+<p>It is easy to see how queries built in the query expression style can be composed - you simply add new constraints to your pipeline. It is not immediately obvious how to compose queries built with the keyword query syntax nor how to compose queries of differing types.</p>
+
+<p>First, we must understand an important feature of the keyword query syntax. In the <code>from</code> clause, the token after the <code>in</code> can be any queryable object <em>and</em> other queries are queryable! Here's an example.</p>
+
+<pre><code class="language-elixir">query  = from p in MyApp.Post,  
+         select: p
+
+query2 = from p in query,  
+         where: p.published == true
+
+MyApp.Repo.all(query2)  
+</code></pre>
+
+<p>Knowing this, we can now mix and match query syntax types.</p>
+
+<pre><code class="language-elixir">query  = from p in MyApp.Post,  
+         select: p
+
+query |&gt; where([p], p.published == true) |&gt; MyApp.Repo.all  
+</code></pre>
+
+<h3 id="puttingitalltogether">Putting It All Together</h3>
+
+<p>Now, let's add some functions to our Ecto models with nice, descriptive names.</p>
+
+<pre><code class="language-elixir">defmodule MyApp.Post do  
+  use Ecto.Model
+  import Ecto.Query
+
+  schema "posts" do
+    field :body, :string
+    field :published, :boolean
+    field :published_at, :datetime
+    field :title, :string
+
+    has_many :comments, MyApp.Comment
+  end
+
+  def published(query) do
+    from p in query,
+    where: p.published == true
+  end
+
+  def sorted(query) do
+    from p in query,
+    order_by: [desc: p.published_at]
+  end
+end  
+</code></pre>
+
+<pre><code class="language-elixir">defmodule MyApp.Comment do  
+  use Ecto.Model
+  import Ecto.Query
+
+  schema "comments" do
+    field :commenter, :string
+    field :title, :string
+    field :votes, :integer
+
+    belongs_to :post, MyApp.Post
+  end
+
+  def for_post(query, post) do
+    from c in query,
+     join: p in assoc(c, :post)
+    where: p.id == ^post.id
+  end
+
+  def popular(query) do
+    query |&gt; where([c], c.votes &gt; 10)
+  end
+end  
+</code></pre>
+
+<p>I've used both styles of querying to show their interchangability when it comes to composition. Now, let's use our functions to build some queries. Normally, I'd do this type of composition in my <a href="http://phoenixframework.org">Phoenix</a> controllers.</p>
+
+<pre><code class="language-elixir">alias MyApp.Post  
+alias MyApp.Comment
+
+published_posts = Post  
+|&gt; Post.published
+|&gt; MyApp.Repo.all
+
+last_post = Post  
+|&gt; Post.published
+|&gt; Post.sorted
+|&gt; MyApp.Repo.one
+
+recent_popular_comments = Comment  
+|&gt; Comment.for_post(last_post)
+|&gt; Comment.popular
+|&gt; MyApp.Repo.all
+</code></pre>
+
+<h3 id="wrapup">Wrap Up</h3>
+
+<p>I hope this gives you an idea of the power and flexibility Ecto provides for extracting reusable query components and composing them to build more complex queries. I've found these techniques reduce duplication and complexity while aiding testing.</p>]]></content:encoded></item><item><title><![CDATA[Building an Elixir Web App]]></title><description><![CDATA[<p>Over the past few months I've been building a small internal application at work. I've been using <a href="http://elixir-lang.org">Elixir</a>, <a href="https://github.com/elixir-lang/ecto">Ecto</a> and <a href="http://phoenixframework.org">Phoenix</a> and it's been an absolute blast. I thought it would be useful to put together a "lessons leared" blog post about the techniques I've found helpful using these tools</p>]]></description><link>http://blog.drewolson.org/building-an-elixir-web-app/</link><guid isPermaLink="false">4137687e-f1c4-4b60-b9fe-5b502a981b31</guid><category><![CDATA[elixir]]></category><dc:creator><![CDATA[Drew Olson]]></dc:creator><pubDate>Mon, 19 Jan 2015 18:00:00 GMT</pubDate><content:encoded><![CDATA[<p>Over the past few months I've been building a small internal application at work. I've been using <a href="http://elixir-lang.org">Elixir</a>, <a href="https://github.com/elixir-lang/ecto">Ecto</a> and <a href="http://phoenixframework.org">Phoenix</a> and it's been an absolute blast. I thought it would be useful to put together a "lessons leared" blog post about the techniques I've found helpful using these tools to build a database-backed web app.</p>
+
+<p>This post is not intended as an introducion to any of the these tools. I assume some knowledge of Elixir, Ecto and Phoenix.</p>
+
+<p>Note: while Elixir is post-1.0, Ecto and Phoenix are not. Things move fast and this post may quickly become out of date.</p>
+
+<h3 id="pipelinesareyourfriend">Pipelines are your friend</h3>
+
+<p>Phoenix has the concept of <code>pipeline</code>s which are a series of <code>plug</code>s (think <a href="http://rack.github.io/">rack</a> middleware) that will be executed in order. You can send all requests for a given scope of URLs through a pipeline.</p>
+
+<p>In my application I have a pipeline for the browser, a pipeline for authentication and a pipeline for API requests. I can mix and match these pipelines to accept browser requests with or without authentication and API requests with or without authentication. My <code>router.ex</code> looks something like this:</p>
+
+<pre><code class="language-elixir">defmodule MyApp.Router do  
+  use Phoenix.Router
+
+  pipeline :api do
+    plug :accepts, ~w(json)
+  end
+
+  pipeline :auth do
+    plug MyApp.Plug.Authentication
+  end
+
+  pipeline :browser do
+    plug :accepts, ~w(html)
+    plug :fetch_session
+    plug :fetch_flash
+    plug MyApp.Plug.CSRF
+  end
+
+  # public routes via the browser
+  scope alias: MyApp do
+    pipe_through :browser
+
+    # ...
+  end
+
+  # private routes via the browser
+  scope alias: MyApp do
+    pipe_through [:browser, :auth]
+
+    # ...
+  end
+
+  # public routes via the api
+  scope "/api/v1", alias: MyApp do
+    pipe_through :api
+
+    # ...
+  end
+
+  # private routes via the api
+  scope "/api/v1", alias: MyApp do
+    pipe_through [:api, :auth]
+
+    # ...
+  end
+</code></pre>
+
+<h3 id="separateyourapiendpointswithascope">Separate your API endpoints with a scope</h3>
+
+<p>This leads me to my next point. I chose to separate my API with a distinct scope. This gives me the convenience of using the same controllers and actions to expose my API that I'm using to serve browser requests, but also allows me the flexibility of only exposing a subset of those routes (or entirely new actions and routes).</p>
+
+<p>Suppose I have a 'Page' resource in my application that is accessible via the browser but only the <code>index</code> action is accessible via the API. I could do the following:</p>
+
+<pre><code class="language-elixir">scope alias: MyApp do  
+  pipe_through [:browser, :auth]
+
+  resources "/pages", PageController
+end
+
+scope "/api/v1", alias: MyApp do  
+  pipe_through [:api, :auth]
+
+  resources "/pages", PageController, only: [:index]
+end  
+</code></pre>
+
+<p>The <code>PageController.index</code> action can now serve both API and browser requests, but if a user tries to access <code>PageController.show</code> via the API it will refuse to serve JSON.</p>
+
+<h3 id="createcustomjsonserializers">Create custom JSON serializers</h3>
+
+<p>Creating custom JSON serializers in Phoenix is easy and powerful. First, you override the appropriate <code>render</code> function in your view. Let's continue with the previous <code>Page</code> example and assume the render function is called with a collection of <code>page</code> objects.</p>
+
+<pre><code class="language-elixir">defmodule MyApp.PageView do  
+  def render("index.json", %{pages: pages}) do
+    pages
+  end
+end  
+</code></pre>
+
+<p>Note that the return value of the <code>render</code> call is just the provided <code>pages</code>. This won't quite work yet. Phoenix expects anything that is returned by a JSON action to implement the <code>Poison.Encoder</code> protocol. This is where we can put our custom serialization logic.</p>
+
+<pre><code class="language-elixir">defimpl Poison.Encoder, for: MyApp.Page do  
+  def encode(page, _options) do
+    %{
+      title: page.title,
+      body: page.body
+    } |&gt; Poison.Encoder.encode([])
+  end
+end  
+</code></pre>
+
+<p>Tada! We create a custom JSON "view" of our data and Phoenix / Poison are smart enough to iterate over our collection of <code>pages</code> and build the JSON. Yahoo!</p>
+
+<h3 id="buildqueriesinyourmodelsexecutetheminyourcontrollers">Build queries in your models, execute them in your controllers</h3>
+
+<p>I've found it convenient to have your models responsible for building queries and your controllers responsible for executing those queries.</p>
+
+<pre><code class="language-elixir">defmodule MyApp.Page do  
+  use Ecto.Model
+  import Ecto.Query
+
+  schema "pages" do
+    field :title, :string
+    field :body, :string
+    field :published, :boolean
+  end
+
+  def published do
+    from p in MyApp.Page,
+    where: p.published == true
+  end
+end
+
+defmodule MyApp.PageController do  
+  use Phoenix.Controller
+
+  plug :action
+
+  def index(conn, _params) do
+    pages = MyApp.Page.published |&gt; MyApp.Repo.all
+
+    render conn, :index, pages: pages
+  end
+end  
+</code></pre>
+
+<p>The biggest benefit this style is composibility of queries. I've started writing all my queries to expect a prior query and I then chain them together in my controller.</p>
+
+<pre><code class="language-elixir">defmodule MyApp.Page do  
+  use Ecto.Model
+  import Ecto.Query
+
+  schema "pages" do
+    field :title, :string
+    field :body, :string
+    field :published, :boolean
+    field :pubished_at, :datetime
+  end
+
+  def published(query) do
+    from p in query,
+    where: p.published == true
+  end
+
+  def recent(query) do
+    from p in query,
+    where: p.published_at &gt; ^MyApp.Helper.Date.yesterday
+  end
+end
+
+defmodule MyApp.PageController do  
+  use Phoenix.Controller
+  alias MyApp.Page
+
+  plug :action
+
+  def index(conn, _params) do
+    pages = Page
+    |&gt; Page.published
+    |&gt; Page.recent
+    |&gt; MyApp.Repo.all
+
+    render conn, :index, pages: pages
+  end
+end  
+</code></pre>
+
+<h3 id="createsharedpartialsbyaddingasharedview">Create shared partials by adding a shared view</h3>
+
+<p>I wanted to be able to render common HTML snippets across many of my templates (such as rendering form errors). To do so, I created a <code>SharedView</code> and explicitly rendered the shared templates.</p>
+
+<pre><code class="language-elixir">defmodule MyApp.SharedView do  
+  use MyApp.View
+end  
+</code></pre>
+
+<pre><code class="language-erb">&lt;%= render MyApp.SharedView, "_errors.html", errors: @error %&gt;  
+</code></pre>
+
+<h3 id="wrapup">Wrap Up</h3>
+
+<p>Each of these topics deserves a full post itself and there are many techniques I haven't covered (testing, changesets, custom validations, etc). I'm in awe of the speed at which the Elixir, Ecto and Phoenix communites are moving. Expect great things from <a href="https://github.com/chrismccord">Chris</a>, <a href="https://github.com/ericmj">Eric</a>, <a href="https://github.com/josevalim">José</a> and the rest in 2015. Hold on to your butts.</p>
+
+<p><img src="http://butt.holdings/hold-onto-your-butts.gif" alt="Hold onto your butts"></p>
+
+<h5 id="update">Update</h5>
+
+<p>See my <a href="http://blog.drewolson.org/composable-queries-ecto/">follow up post</a> on composing Ecto queries for more detailed information on that topic.</p>]]></content:encoded></item><item><title><![CDATA[Good Software Developers]]></title><description><![CDATA[<p>I'm approaching 8 years as a professional software developer. I've written a lot of code, worked on a few teams and helped build a team from 4 developers to ~60. Now, more than ever, I find myself thinking about what it means to be a good software developer. Not good</p>]]></description><link>http://blog.drewolson.org/good-software-developers/</link><guid isPermaLink="false">9e17db16-681b-44a4-89b7-3923b5b8df1f</guid><category><![CDATA[software]]></category><dc:creator><![CDATA[Drew Olson]]></dc:creator><pubDate>Sat, 01 Nov 2014 17:00:00 GMT</pubDate><content:encoded><![CDATA[<p>I'm approaching 8 years as a professional software developer. I've written a lot of code, worked on a few teams and helped build a team from 4 developers to ~60. Now, more than ever, I find myself thinking about what it means to be a good software developer. Not good as in "good is the enemy of great", but good as in "I want to work with this person again". I think there are three characteristics that make someone good in this industry.</p>
+
+<ul>
+<li>Curiosity</li>
+<li>Humility</li>
+<li>Discipline</li>
+</ul>
+
+<p>Curiosity is important because it fuels the drive to learn more, try new things, tinker and fail.</p>
+
+<p>Humility is necessary to internalize feedback, keep trying after failure and learn from others.</p>
+
+<p>Discipline, I've found, is both more subtle and more important than the other characteristics. It tells me how an individual will react under pressure, how they'll perform repetitive tasks, how they'll commit their code and run their builds. Here's a non-exhaustive list of the ways discipline manifests itself on real software development teams.</p>
+
+<p>A disciplined software developer will:</p>
+
+<ul>
+<li>Make small, intentional commits</li>
+<li>Write code with tests</li>
+<li>Run the tests before committing</li>
+<li>Ensure passing builds after committing</li>
+<li>Understand their VCS tool and use it well</li>
+<li>Understand the team's release process</li>
+<li>Write tested scripts to perform one-off maintenance</li>
+<li>Ask for feedback (via pairing, PRs, etc.) on their code</li>
+<li>Know team conventions and know when to break them</li>
+</ul>
+
+<p>The list could go on and on. It may not be obvious that all these things are related to discipline, but when I see a developer doing these things on a daily basis it builds trust and respect. I would work with that person again.</p>
+
+<p>I met a friend in college that started his own awning cleaning business in high school. He still runs it today and it's extremely successful. I was talking with him one day and found myself confused as to why one awning cleaning business would succeed where others failed. How do you differentiate yourself? When I asked him this question, his response was both simple and insightful. "We show up on time and do the job we said we would do." That's it.</p>
+
+<p>We can be successful in many facets of life following those same rules. Notice that nothing in the list above says "genius coder", "knows algorithms", "cranks out solutions quickly" or anything of the sort. Most of being a good software developer involves showing up on time and doing your job well. It's the little things that count.</p>
+
+<blockquote>
+  <p>We are what we repeatedly do. Excellence, then, is not an act, but a habit.</p>
+  
+  <p>Aristotle</p>
+</blockquote>]]></content:encoded></item><item><title><![CDATA[Node Streams for APIs]]></title><description><![CDATA[<p>Node streams are a fantastic abstraction for evented programming. They're also notoriously hard to implement. In this post, I'd like to walk through implementing a <a href="http://blog.nodejs.org/2012/12/20/streams2/">streams2</a> <a href="http://nodejs.org/api/stream.html#stream_class_stream_readable">Readable stream</a> to wrap an API.</p>
+
+<h3 id="theapi">The API</h3>
+
+<p>Suppose we have a web service that returns a list of customers. There might be a</p>]]></description><link>http://blog.drewolson.org/node-streams-for-apis/</link><guid isPermaLink="false">7ae2a0b0-f67c-43f3-b398-d29fa8fdb601</guid><category><![CDATA[node]]></category><dc:creator><![CDATA[Drew Olson]]></dc:creator><pubDate>Sat, 04 Jan 2014 18:00:00 GMT</pubDate><content:encoded><![CDATA[<p>Node streams are a fantastic abstraction for evented programming. They're also notoriously hard to implement. In this post, I'd like to walk through implementing a <a href="http://blog.nodejs.org/2012/12/20/streams2/">streams2</a> <a href="http://nodejs.org/api/stream.html#stream_class_stream_readable">Readable stream</a> to wrap an API.</p>
+
+<h3 id="theapi">The API</h3>
+
+<p>Suppose we have a web service that returns a list of customers. There might be a large number of customers, so this service paginates the results and expects us to provide a page number when requesting data. A sample request to the API might look something like the line below.</p>
+
+<pre><code class="language-bash">curl http://localhost:3000/customers?page=1  
+</code></pre>
+
+<p>And here's an example of a response.</p>
+
+<pre><code>{"customers":[{"name":"drew"},{"name":"john"}],"nextPage":"/customers?page=2","isLastPage":false}
+</code></pre>
+
+<p>This API makes it convenient to fetch the next page of result by providing the url in the <code>nextPage</code> key of the response. It also tells us if we've reached the last page of results.</p>
+
+<p>To make is simple to test our stream that will warp this API, I've created an express app that implements our description. Let's take a look at the code.</p>
+
+<pre><code class="language-javascript">var express = require('express');  
+var app = express();
+
+var callCount = 0;  
+var customers = [  
+  {name: "drew"},
+  {name: "john"},
+  {name: "bill"},
+  {name: "bob"},
+  {name: "sam"}
+];
+var pageSize = 2;
+
+app.get('/customers', function (req, res) {  
+  callCount += 1;
+
+  var page = parseInt(req.query.page);
+  var startingIndex = (page - 1) * pageSize;
+  var endingIndex = Math.min(startingIndex + pageSize, customers.length);
+
+  var currentCustomers = customers.slice(startingIndex, endingIndex);
+
+  res.send(JSON.stringify({
+    customers: currentCustomers,
+    nextPage: "/customers?page=" + (page + 1),
+    isLastPage: endingIndex === customers.length
+  }));
+});
+
+app.resetCallCount = function () {  
+  callCount = 0;
+};
+
+app.getCallCount = function () {  
+  return callCount;
+};
+
+module.exports = app;  
+</code></pre>
+
+<p>Note that I've specified an artifically small pageSize as well as number of customers to make testing easier. Also note that the <code>callCount</code> variable and its associated functions are provided so that we can make assertions about the number of requests we've made to the API in our tests.</p>
+
+<h3 id="tests">Tests</h3>
+
+<p>Before we dive into the implementing our stream, let's write a few tests to specify the desired behavior. Here are the two key things we should test:</p>
+
+<ol>
+<li>We can treat our stream as any other node stream  </li>
+<li>It lazily fetches results from the API as needed</li>
+</ol>
+
+<p>Below are two tests written using mocha. The method we'll be implementing is <code>customer.all()</code>. This will eventually return our stream that wraps the API above.</p>
+
+<pre><code class="language-javascript">var assert = require('assert');  
+var api = require('./support/api');  
+var customer = require('../lib/customer');  
+var Writable = require('stream').Writable;  
+var _ = require('lodash');
+
+describe('customer', function () {  
+  before(function () {
+    api.listen(3000);
+  });
+
+  beforeEach(function () {
+    api.resetCallCount();
+  });
+
+  describe('#all', function () {
+    it('returns a stream of customers from the api', function (done) {
+      customers = []
+
+      var stream = customer.all()
+
+      stream.on('data', function (customer) {
+        customers.push(customer);
+      });
+
+      stream.on('end', function () {
+        assert.equal(5, customers.length);
+        assert.equal('drew', customers[0].name);
+        assert.equal(3, api.getCallCount());
+
+        done();
+      });
+    });
+
+    it('consumes lazily when piped', function (done) {
+      var ws = new Writable({objectMode: true});
+      var writeCount = 0;
+
+      ws._write = function (chunk, enc, next) {
+        writeCount += 1;
+
+        if (writeCount &lt; 2) {
+          next();
+        } else {
+          assert.equal(1, api.getCallCount());
+          done();
+        }
+      };
+
+      customer.all().pipe(ws);
+    });
+  });
+});
+</code></pre>
+
+<p>On line 2, we require the API we discussed above. On line 3, we require the <code>customer</code> module we're about the write. Before running any tests we start our API server listening on port 3000. Before each test we reset the call count on our API server.</p>
+
+<p>Our first test verifies that we can interact with the return value from <code>customer.all()</code> using the stream API. We attach <code>data</code> and <code>end</code> events to the stream to switch it into flowing mode. When the stream emits the <code>end</code> event, we verify that we've received all 5 customers, we've only made 3 calls to the API and that the first customer has the name "drew".</p>
+
+<p>Our second test verifies that we fetch results from our API lazily. We ensure this by writing a custom <a href="http://nodejs.org/api/stream.html#stream_class_stream_writable">Writable stream</a> that only asks for the first two customers from our stream and verifies that it has only called the API once to retrieve them. Finally, we pipe the result of <code>customer.all()</code> into our Writable stream to kick things off.</p>
+
+<h3 id="implementingthestream">Implementing the Stream</h3>
+
+<p>We know what our API looks like and we have tests to verify that our stream will work correctly. Now we need to implement it. First, let's take a look at the customer module. It's extremely simple because it just returns a new instance of <code>CustomerStream</code>.</p>
+
+<pre><code class="language-javascript">var CustomerStream = require('./customer-stream');
+
+exports.all = function () {  
+  return new CustomerStream();
+};
+</code></pre>
+
+<p>Now we've arrived at the real meat of this post. It's time to dive into the implementation of our stream itself. Before doing so, let's talk a bit about how to implement a Readable stream.</p>
+
+<p>First, we need to inherit from the Readable stream base class. Next, we need to implement a <code>_read</code> method. Our <code>_read</code> method will be called each time someone is requesting data from our stream. Each time <code>_read</code> is called, we're expected to call the <code>push</code> method (provided by the base class) at least once. In fact, <code>_read</code> will not be called again until we've pushed at least one value. Calling <code>push</code> pushes a value onto the stream to allow our consume access to it.</p>
+
+<p>There's a few other things we need to know about the <code>push</code> method. First, if push ever returns <code>false</code> that tells us we should not push any more values until <code>_read</code> is called again. Second, when we're done pushing all our data we need to call <code>push</code> with <code>null</code> to signal the end of the stream.</p>
+
+<p>So what does our <code>_read</code> method need to do? The high level steps are as follows:</p>
+
+<ol>
+<li>If we have any customers in memory that we've fetched previously, we should push them.  </li>
+<li>If we don't have any customers and we're on the last page, it's time to stop.  </li>
+<li>If neither of the previous two statements is true, we need to fetch new results from the server, buffer them, and push them.</li>
+</ol>
+
+<p>Let's take a look at the code. I'll discuss a few pieces of it in detail.</p>
+
+<pre><code class="language-javascript">var _ = require('lodash');  
+var Readable = require('stream').Readable;  
+var request = require('request');  
+var util = require('util');
+
+function CustomerStream() {  
+  Readable.call(this, {objectMode: true});
+
+  this.customers = [];
+  this.nextPage = '/customers?page=1';
+  this.isLastPage = false;
+}
+util.inherits(CustomerStream, Readable);
+
+CustomerStream.prototype.fetchNextPage = function () {  
+  request('http://localhost:3000' + this.nextPage, function (error, response, body) {
+    var response = JSON.parse(body);
+
+    this.customers = this.customers.concat(response.customers);
+    this.nextPage = response.nextPage;
+    this.isLastPage = response.isLastPage;
+
+    this.pushBufferedCustomers();
+  }.bind(this));
+};
+
+CustomerStream.prototype.pushBufferedCustomers = function () {  
+  while (this.customers.length &gt; 0) {
+    var customer = this.customers.shift();
+
+    if (this.push(customer) === false) {
+      break;
+    }
+  };
+};
+
+CustomerStream.prototype._read = function () {  
+  if (this.customers.length &gt; 0) {
+    this.pushBufferedCustomers();
+  } else if (this.isLastPage) {
+    this.push(null);
+  } else {
+    this.fetchNextPage();
+  }
+};
+
+module.exports = CustomerStream;  
+</code></pre>
+
+<p>Let's first look at the constructor on lines 6 - 13. We call the Readable stream's constructor making sure it is in object mode. This allows us to push objects to the stream. Next we initialize our <code>customers</code>, <code>nextPage</code> and <code>isLastPage</code> variables. Finally, we make sure <code>CustomerStream</code> inherits from <code>Readable</code>.</p>
+
+<p>We'll examine the <code>_read</code> method next. Notice that the body of the method very closely follows the steps we described above. If we have any customers available we push them. If we're on the last page we push <code>null</code> to indicate that the stream is complete. Otherwise, we fetch our next page of results.</p>
+
+<p>The <code>pushBufferedCustomers</code> method pops customers off the <code>customers</code> array one at a time and pushes them. If any of those pushes returns <code>false</code>, it stops.</p>
+
+<p>Finally, the <code>fetchNextPage</code> method uses the <code>request</code> library to call our API. It then parses the body, adds the customers to the array, updates the <code>nextPage</code> and updates <code>isLastPage</code>. The call to <code>pushBufferedCustomers</code> on line 23 is very important. As I said earlier, each call to <code>_read</code> expects at least one call to <code>push</code>. If we don't push any results after fetching customers from the API, our stream would hang indefinitely waiting on results.</p>
+
+<h3 id="wrapup">Wrap Up</h3>
+
+<p>We now have a working stream that wraps our paginated API. If you're interested in the code used for this blog post it can be found <a href="https://github.com/drewolson/node_streams_for_apis">here</a>.</p>]]></content:encoded></item><item><title><![CDATA[Understanding gen_server with Elixir and Ruby]]></title><description><![CDATA[<p>Recently, I've been spending some time working in <a href="http://www.erlang.org/">Erlang</a> and <a href="http://elixir-lang.org/">Elixir</a>. I had tried to break into Erlang in the past but I was always stymied by the steep learning curve of OTP. <a href="http://www.erlang.org/doc/design_principles/gen_server_concepts.html">gen_server</a> in particular always seemed like black magic to me. However, after attending an Erlang workshop</p>]]></description><link>http://blog.drewolson.org/understanding-gen-server/</link><guid isPermaLink="false">e0f93ed5-3762-498f-8ffd-cde5b4283420</guid><category><![CDATA[ruby]]></category><category><![CDATA[elixir]]></category><category><![CDATA[otp]]></category><dc:creator><![CDATA[Drew Olson]]></dc:creator><pubDate>Fri, 25 Oct 2013 17:00:00 GMT</pubDate><content:encoded><![CDATA[<p>Recently, I've been spending some time working in <a href="http://www.erlang.org/">Erlang</a> and <a href="http://elixir-lang.org/">Elixir</a>. I had tried to break into Erlang in the past but I was always stymied by the steep learning curve of OTP. <a href="http://www.erlang.org/doc/design_principles/gen_server_concepts.html">gen_server</a> in particular always seemed like black magic to me. However, after attending an Erlang workshop at <a href="http://lambdajam.com/">Lambda Jam</a> this year it finally clicked for me. After I finally "got it" I had another realization: it isn't that complicated, but there aren't very many good explanations. In this post I'm going to attempt to explain gen_server using Elixir and <a href="https://www.ruby-lang.org">Ruby</a> code and some simple diagrams.</p>
+
+<p>I chose to use Elixir rather than Erlang because I've really enjoyed working in it recently and I think the syntax is approachable for those new to Erlang/Elixir as well as those already familiar with Erlang.</p>
+
+<p>Disclaimer: My goal is to help you understand the concepts around gen_server <em>not</em> how the actual underlying implementation works. Specifically, the Ruby code I link to at the end of the post is meant to help you understand the <em>idea</em> of what's happening. It is in no way a real implementation of gen_server in Ruby.</p>
+
+<h3 id="concepts">Concepts</h3>
+
+<p>The two key concepts we're going to focus on in this blog post are <strong>state</strong> and <strong>behavior</strong>.</p>
+
+<p>In traditional OO languages classes store behavior and instances store state. You write a class definition with methods that specify the behavior of an object and then you instantiate that class to create an instance of an object that holds its own state.</p>
+
+<pre><code class="language-bash">           +-----------------+                   +-----------------+
+           |      Class      |                   |     Instance    |
+           |-----------------|                   |-----------------|
+           |                 |                   |                 |
+           |                 |                   |                 |
+           |    Behavior     +------------------&gt;|      State      |
+           |                 |                   |                 |
+           |                 |                   |                 |
+           |                 |                   |                 |
+           |                 |                   |                 |
+           +-----------------+                   +-----------------+
+</code></pre>
+
+<p>Let's write a simple ruby class that has behavior and state.</p>
+
+<pre><code class="language-ruby">class Greeter  
+  def initialize(name)
+    @name = name
+  end
+
+  def greet
+    "Hello, #{@name}"
+  end
+end
+
+drew = Greeter.new("Drew")  
+puts drew.greet  
+</code></pre>
+
+<p>In the example above, the <code>Greeter</code> class defines some behavior, namely the <code>greet</code> and <code>initialize</code> methods. The instance of the <code>Greeter</code> class, <code>drew</code>, is instantiated with some state (the string "Drew") and this state can be referenced from behavior that the class defines. The <code>greet</code> method uses the instance variable <code>@name</code>. Those of us who have spent any time with an OO language understand these concepts intuatively. Objects are the fusion of behavior and state, classes and instances.</p>
+
+<p>But there's a problem. Elixir doesn't have state. You can't (really) store stuff anywhere. We can fake something like the code above using modules and records.</p>
+
+<pre><code class="language-elixir">defrecord Person, greet: ""
+
+defmodule Greeter do  
+  def new(name) do
+    Person.new(greet: "Hello, #{name}")
+  end
+end
+
+drew = Greeter.new("Drew")  
+IO.puts drew.greet  
+</code></pre>
+
+<p>But there's a key difference here. We're creating records to hold values rather than state. These values can never change over time, so if we wanted to modify the <code>greet</code> attribute of our <code>Person</code> record we would actually create a totally new record. What if we want to have a true concept of state that can change over time and that we can use as part of the behavior we describe in a module?</p>
+
+<p>Well, as you might have guessed, gen_server fills this role in Elixir. We will use gen_server to create processes that will be associated with our modules. Modules will contain behavior and processes will contain state.</p>
+
+<pre><code class="language-bash">           +-----------------+                   +-----------------+
+           |      Module     |                   |     Process     |
+           |-----------------|                   |-----------------|
+           |                 |                   |                 |
+           |                 |                   |                 |
+           |    Behavior     +------------------&gt;|      State      |
+           |                 |                   |                 |
+           |                 |                   |                 |
+           |                 |                   |                 |
+           |                 |                   |                 |
+           +-----------------+                   +-----------------+
+</code></pre>
+
+<h3 id="anexample">An Example</h3>
+
+<p>We're going to build a <strong>simple stack</strong> using Elixir and gen_server. We'll be able to push values onto the stack and pop values off of the stack. Our module will define the behvior of the stack but gen_server will store the state.</p>
+
+<p>Because our module isn't responsible for storing the state, the methods we define inside of it must assume that the state will be passed in as arguments. The return values from these methods will need to include a new value for the state after the call. This makes the return values from our methods look a little weird because we have to both return the result of the method call (if there is one) as well as the new state. But don't worry, it's not too bad.</p>
+
+<p>It will be gen_server's responsibility to find the state associated with our process and pass it to our methods as well as storing the resulting state after the method call.</p>
+
+<p>First, let's take a look at our <code>Stack</code> module.</p>
+
+<pre><code class="language-elixir">defmodule Stack do  
+  use GenServer.Behaviour
+
+  def handle_call(:pop, _from, []) do
+    {:reply, nil, []}
+  end
+
+  def handle_call(:pop, _from, state) do
+    [head|new_state] = state
+
+    {:reply, head, new_state}
+  end
+
+  def handle_cast({:push, value}, state) do
+    {:noreply, [value|state]}
+  end
+end  
+</code></pre>
+
+<p>Ok, so there's some weird stuff going on here. First, why are all our methods named <code>handle_call</code> and <code>handle_cast</code>? It's because when gen_server finds our processes state for us, it calls these <code>callback</code> methods on our module and passes along the arguments we provided, the pid of the caller (the _from argument, which we ignore) and the current state. Note that there are two (for now) types of callbacks: call and cast. Call is synchronous, it updates the state and sends a reply. Cast is asynchronous, it updates the state but doesn't send a reply.</p>
+
+<p>Next, let's look at how we actually create a gen_server process (our equivilent of an instance) associated with this module and interact with it.</p>
+
+<pre><code class="language-bash">iex(1)&gt; {:ok, pid} = :gen_server.start_link(Stack, [], [])  
+{:ok, #PID&lt;0.40.0&gt;}
+iex(2)&gt; :gen_server.call(pid, :pop)  
+nil  
+iex(3)&gt; :gen_server.cast(pid, {:push, 1})  
+:ok
+iex(4)&gt; :gen_server.cast(pid, {:push, 2})  
+:ok
+iex(5)&gt; :gen_server.call(pid, :pop)  
+2  
+iex(6)&gt; :gen_server.call(pid, :pop)  
+1  
+</code></pre>
+
+<p>First, we start a new gen_server process associated with the <code>Stack</code> module using the <code>start_link</code> method on gen_server. The first argument is the module with our behavior and the second is the initial state. Ignore the third. This method call returns the symbol <code>:ok</code> along with the pid of the process. Think of this as our instance or a pointer to our state.</p>
+
+<p>Now, when we want to actually call (or cast) a function defined in our module we just use the <code>call</code> and <code>cast</code> functions on gen_server. We always pass our pid as the first argument and then the arguemnts to our <code>Stack</code> function as the second argument. If we want to pass anything other than the function name we use a tuple.</p>
+
+<p>Behind the scenes gen_server gets our pid, finds the state associated with it and then calls the appropriate method on our module passing the state along as an argument. That's it!</p>
+
+<p>"But Drew!", you shout, "That looks hideous!" Well, you're correct. But we can hide the complexity of gen_server from our callers by writing a few more functions on our module.</p>
+
+<pre><code class="language-elixir">defmodule Stack do  
+  use GenServer.Behaviour
+
+  def start_link(state) do
+    {:ok, pid} = :gen_server.start_link(Stack, state, [])
+    pid
+  end
+
+  def pop(pid) do
+    :gen_server.call(pid, :pop)
+  end
+
+  def push(pid, value) do
+    :gen_server.cast(pid, {:push, value})
+  end
+
+  def handle_call(:pop, _from, []) do
+    {:reply, nil, []}
+  end
+
+  def handle_call(:pop, _from, state) do
+    [head|new_state] = state
+
+    {:reply, head, new_state}
+  end
+
+  def handle_cast({:push, value}, state) do
+    {:noreply, [value|state]}
+  end
+end  
+</code></pre>
+
+<p>Now when we interact with our <code>Stack</code>, it looks nice.</p>
+
+<pre><code class="language-bash">iex(1)&gt; pid = Stack.start_link([])  
+#PID&lt;0.45.0&gt;
+iex(2)&gt; Stack.push(pid, 1)  
+:ok
+iex(3)&gt; Stack.push(pid, 2)  
+:ok
+iex(4)&gt; Stack.pop(pid)  
+2  
+iex(5)&gt; Stack.pop(pid)  
+1  
+</code></pre>
+
+<h3 id="wrappingup">Wrapping Up</h3>
+
+<p>I hope this helps you gain a better understanding what gen_server provides and, on a conceptual level, how it works. If you're interested in digging further, take a look at <a href="https://gist.github.com/drewolson/7159533">this demonstration</a> of implementating the spirit of gen_server in Ruby. Again, this is not a true implemetation but a learning tool to help those who understand Ruby get a better feel for what gen_server is doing.</p>
+
+<p>Now go out there and write some Elixir (or Erlang, if you must).</p>]]></content:encoded></item><item><title><![CDATA[Clojure core.async and Go: A Code Comparison]]></title><description><![CDATA[<p>Last week, Rich Hickey announced Clojure core.async in a <a href="http://clojure.com/blog/2013/06/28/clojure-core-async-channels.html">blog post</a>. As mentioned in the post, the new core.async library has a lot in common with <a href="http://golang.org">Go</a>. In this post, I'll compare the fundamental building blocks of concurrency in core.async and Go with code examples.</p>
+
+<p>Note: Clojure</p>]]></description><link>http://blog.drewolson.org/clojure-go-comparison/</link><guid isPermaLink="false">9b13202a-5b81-4ec6-bc2d-5690ee54f859</guid><category><![CDATA[clojure]]></category><category><![CDATA[go]]></category><dc:creator><![CDATA[Drew Olson]]></dc:creator><pubDate>Thu, 04 Jul 2013 17:00:00 GMT</pubDate><content:encoded><![CDATA[<p>Last week, Rich Hickey announced Clojure core.async in a <a href="http://clojure.com/blog/2013/06/28/clojure-core-async-channels.html">blog post</a>. As mentioned in the post, the new core.async library has a lot in common with <a href="http://golang.org">Go</a>. In this post, I'll compare the fundamental building blocks of concurrency in core.async and Go with code examples.</p>
+
+<p>Note: Clojure core.async provides two sets of operations on channels. The blocking operations are for use with native threads and the non-blocking operations are for use with go blocks. In this post, I'll be focusing on the non-blocking operations used with go blocks but I'll briefly mention the blocking versions.</p>
+
+<p>Update: It is important to note that I'm using Thread/sleep in the clojure examples for clarity. This will block the entire thread and eventually starve the thread pool used for go blocks. Don't use it in real code, use a timeout instead (thanks <a href="https://news.ycombinator.com/user?id=MBlume">MBlume</a> and <a href="https://news.ycombinator.com/user?id=pron">pron</a>).</p>
+
+<h3 id="setup">Setup</h3>
+
+<p>To install Go on OSX, just use homebrew.</p>
+
+<pre><code class="language-bash">$ brew install go
+</code></pre>
+
+<p>For clojure, you'll want to install leiningen via homebrew.</p>
+
+<pre><code class="language-bash">$ brew install leiningen
+</code></pre>
+
+<p>After generating a leiningen project, you'll need to add core.async as a dependency. Unfortunately it's not yet available on maven central, so you'll need to clone it and install it in your local maven repository first.</p>
+
+<pre><code class="language-bash">$ git clone git@github.com:clojure/core.async.git
+$ cd core.async
+$ maven install
+</code></pre>
+
+<p>Now, we can add core.async as a dependency in our project.clj file.</p>
+
+<pre><code class="language-clojure">(defproject async_example "0.1.0-SNAPSHOT"
+  :description "Async example"
+  :url "http://example.com"
+  :license {:name "MIT License" :url "http://opensource.org/licenses/MIT"}
+  :main async-example.core
+  :dependencies [[org.clojure/clojure "1.5.1"]
+                 [org.clojure/core.async "0.1.0-SNAPSHOT"]])
+</code></pre>
+
+<p>Update: To avoid having to install core.async locally, you can add the following line to your project.clj (thanks weavejester):</p>
+
+<pre><code class="language-clojure">:repositories {"sonatype-oss-public" "https://oss.sonatype.org/content/groups/public/"}
+</code></pre>
+
+<p>We're all set to start comparing Go and core.async.</p>
+
+<h3 id="goroutinesandgoblocks">Goroutines and Go Blocks</h3>
+
+<p>Both core.async and Go provide a facility for spawning "lightweight threads". In core.async, this is handled via go blocks. In Go, we use goroutines.</p>
+
+<p>Let's write an example spawning 10 lightweight threads that will sleep for a random amount of time and then print a number (0-9).</p>
+
+<pre><code class="language-go">package main
+
+import (  
+  "fmt"
+  "math/rand"
+  "time"
+)
+
+func main() {  
+  for i := 0; i &lt; 10; i++ {
+    go func(i int) {
+      sleep := time.Duration(rand.Intn(1000))
+      time.Sleep(sleep * time.Millisecond)
+      fmt.Println(i)
+    }(i)
+  }
+
+  time.Sleep(2000 * time.Millisecond)
+}
+</code></pre>
+
+<p>As you can see, we use the <code>go</code> keyword to spawn goroutines and each waits a bit and prints its designated number.</p>
+
+<pre><code class="language-clojure">(ns async-example.core
+  (:require [clojure.core.async :refer :all])
+  (:gen-class))
+
+(defn -main [&amp; args]
+  (doseq [i (range 10)]
+    (go
+      (Thread/sleep (rand-int 1000))
+      (println i)))
+
+  (Thread/sleep 2000))
+</code></pre>
+
+<p>The clojure code looks quite similar (besides being a lisp) to the Go code. The main difference is we use the <code>(go ...)</code> macro to spawn a go block.</p>
+
+<h3 id="channels">Channels</h3>
+
+<p>While goroutines and go blocks are slightly interesting in isolation, they become much more powerful when combined with channels. Channels can be thought of as blocking queues that goroutines or go blocks can push messages onto and pull messages off of. In Go, we use <code>ch &lt;-</code> and <code>&lt;-ch</code> to push and pull from a channel respectively. In clojure, we use <code>&gt;!</code> and <code>&lt;!</code>.</p>
+
+<p>To construct channels in Go we use <code>make(chan &lt;type&gt;)</code>, in clojure we use <code>(chan)</code>.</p>
+
+<p>It is important to remember that, by default, when a value is pushed onto a channel it blocks until it is pulled off. Likewise, when a value is pulled from a channel it blocks until there is something to pull.</p>
+
+<p>Below is an example of 10 goroutines/go blocks pushing values onto a channel and a main goroutine/go block pulling values off the channel and printing them.</p>
+
+<pre><code class="language-go">package main
+
+import (  
+  "fmt"
+  "math/rand"
+  "time"
+)
+
+func main() {  
+  c := make(chan int)
+
+  for i := 0; i &lt; 10; i++ {
+    go func(i int) {
+      sleep := time.Duration(rand.Intn(1000))
+      time.Sleep(sleep * time.Millisecond)
+      c &lt;- i
+    }(i)
+  }
+
+  for i := 0; i &lt; 10; i++ {
+    fmt.Println(&lt;-c)
+  }
+}
+</code></pre>
+
+<pre><code class="language-clojure">(ns async-example.core
+  (:require [clojure.core.async :refer :all])
+  (:gen-class))
+
+(defn -main [&amp; args]
+  (let [c (chan)]
+    (doseq [i (range 10)]
+      (go
+        (Thread/sleep (rand-int 1000))
+        (&gt;! c i)))
+
+    (&lt;!!
+      (go
+        (doseq [_ (range 10)]
+          (println (&lt;! c)))))))
+</code></pre>
+
+<p>There are a few differences here to point out. First, you'll notice that we didn't spawn a goroutine for the main loop that reads the values in the go example. This is because the main program itself is running in a goroutine. In clojure, because core.async is a library, we must put the pulling component in a go block as well.</p>
+
+<p>Second, you'll notice that the last go block in the clojure example is surrounded by <code>(&lt;!! ...)</code>. This is an equivalent function to <code>&lt;!</code> except that it is used with native threads instead of go blocks. In core.async, go blocks return a channel that have the last value of the go block pushed onto it when execution is complete. By wrapping the final go block in a call to <code>&lt;!!</code>, we block the main thread of the program until all the pulling is complete.</p>
+
+<h3 id="selectandalts">Select and Alts!</h3>
+
+<p>The last piece of the puzzle is the ability to pull a value off many channels. Go provides <code>select</code> and core.async provides <code>alts!</code>. Each will take a collection of channels and execute some code based on the first channel with activity.</p>
+
+<p>We can use <code>select</code> or <code>alts!</code> to add timeouts to our actions. Suppose we have a goroutine/go block that will put a value onto a channel sometime between now and a second from now, but we want to stop the operation if it takes longer than half a second. The following code would accomplish this task.</p>
+
+<pre><code class="language-go">package main
+
+import (  
+  "fmt"
+  "math/rand"
+  "time"
+)
+
+func main() {  
+  rand.Seed(time.Now().UTC().UnixNano())
+
+  c := make(chan string)
+
+  go func() {
+    sleep := time.Duration(rand.Intn(1000))
+    time.Sleep(sleep * time.Millisecond)
+    c &lt;- "success!"
+  }()
+
+  select {
+  case &lt;-c:
+    fmt.Println("Got a value!")
+  case &lt;-time.After(500 * time.Millisecond):
+    fmt.Println("Timeout!")
+  }
+}
+</code></pre>
+
+<p>It's important to understand that the function <code>time.After</code> returns a channel onto which a value will be pushed after the specified timeout. Note that I'm seeding the rand package so that we get different results every time the program is run.</p>
+
+<pre><code class="language-clojure">(ns async-example.core
+  (:require [clojure.core.async :refer :all])
+  (:gen-class))
+
+(defn -main [&amp; args]
+  (let [c (chan)]
+    (go
+      (Thread/sleep (rand-int 1000))
+      (&gt;! c "success!"))
+
+    (&lt;!!
+      (go
+        (let [[result source] (alts! [c (timeout 500)])]
+          (if (= source c)
+            (println "Got a value!")
+            (println "Timeout!")))))))
+</code></pre>
+
+<p>Similar to <code>time.After</code>, the <code>timeout</code> function returns a channel that will have a value pushed onto it after the timeout. The call to <code>alts!</code> returns a vector of the value from the channel and the channel that returned the value (called source in the above example).</p>
+
+<h3 id="wrapup">Wrap Up</h3>
+
+<p>After spending a few days with clojure's core.async, I'm very excited about the possibilities. Previously, I was using Go because I enjoyed its approach to concurrency. Now, this same functionality has been added to clojure via a library. To me, this is a huge win. It means I can program using the concurrency style from Go without fighting its type system and verbosity. To make things even better, you retain all the benefits of lisp and the java ecosystem.</p>
+
+<p>You can learn more about core.async from the excellent <a href="https://github.com/clojure/core.async/blob/master/examples/walkthrough.clj">code walkthrough</a>.</p>]]></content:encoded></item><item><title><![CDATA[Rails Mass Assignment Protection in the Controller]]></title><description><![CDATA[<p>Github recently had a rails mass assignment bug that caused quite a stir. In the aftermath, several people proposed new ways of handling mass assignment protection in rails. One of the proposals, authored by Yehuda Katz, advocated for protecting against mass assignment in the controller rather than the model. I</p>]]></description><link>http://blog.drewolson.org/rails-mass-assignment/</link><guid isPermaLink="false">f52d25cd-1b74-49ad-998d-e3b8f4f87fb9</guid><category><![CDATA[ruby]]></category><category><![CDATA[rails]]></category><dc:creator><![CDATA[Drew Olson]]></dc:creator><pubDate>Fri, 04 May 2012 17:00:00 GMT</pubDate><content:encoded><![CDATA[<p>Github recently had a rails mass assignment bug that caused quite a stir. In the aftermath, several people proposed new ways of handling mass assignment protection in rails. One of the proposals, authored by Yehuda Katz, advocated for protecting against mass assignment in the controller rather than the model. I thought it was a great idea, so I built a little gem called Params Cleaner.</p>
+
+<h3 id="paramscleaner">Params Cleaner</h3>
+
+<p>Params Cleaner provides you with a module that mixes into your controllers. Once mixed in, an ‘allowed_params’ method is available to define which params keys are allowed under a given root key. Here’s an example:</p>
+
+<pre><code class="language-ruby">class PlayersController &lt; ApplicationController  
+  include ParamsCleaner
+
+  allowed_params :player =&gt; [:name, :email]
+
+  def create
+    @player = Player.new(clean_params[:player])
+
+    if @player.save
+      redirect_to player_path(@player)
+    else
+      render :new
+    end
+  end
+end  
+</code></pre>
+
+<p>Note that now, instead of accessing your params via the ‘params’ method, you’re accessing them using the ‘clean_params’ method.</p>
+
+<p>The symbols provided to ‘allowed<em>params’ will work at any level of nesting inside the params hash. For example, assume this ‘allowed</em>params’ declaration:</p>
+
+<pre><code class="language-ruby">allowed_params :player =&gt; [:name, :email]  
+               :name =&gt; [:first, :last]
+</code></pre>
+
+<p>Next, assume our params look like this:</p>
+
+<pre><code class="language-ruby">{
+  :player =&gt; {
+    :email =&gt; "drew@drewolson.org"
+    :bad_key =&gt; "nefarious stuff",
+    :name =&gt; {
+      :first =&gt; "Drew",
+      :last =&gt; "Olson",
+      :nested_bad_key =&gt; "more nefarious stuff"
+    }
+  }
+}
+</code></pre>
+
+<p>Here’s what you’d see when calling the ‘clean_params’ method:</p>
+
+<pre><code class="language-ruby">clean_params[:player]  
+# =&gt; {:email =&gt; "drew@drewolson.org", :name =&gt; {:first =&gt; "Drew", :last =&gt; "Olson"}}
+
+clean_params[:player][:name]  
+# =&gt; {:first =&gt; "Drew", :last =&gt; "Olson"}
+</code></pre>
+
+<h3 id="useit">Use It!</h3>
+
+<p>ParamsCleaner is ready for use. Just add ‘params_cleaner’ to your Gemfile. The source is available here if you’re interested in contributing.</p>]]></content:encoded></item><item><title><![CDATA[Testing Express with Jasmine]]></title><description><![CDATA[<p>I recently worked on a side project using node. In the past, I’ve used vows extensively as a testing framework. There are many great things about vows including speed of execution and seemless support for testing asynchronous functions. However, looking back on that project I feel I spent more</p>]]></description><link>http://blog.drewolson.org/testing-express-with-jasmine/</link><guid isPermaLink="false">b333a454-8f6f-4050-918e-17718d7ef222</guid><category><![CDATA[node]]></category><category><![CDATA[testing]]></category><dc:creator><![CDATA[Drew Olson]]></dc:creator><pubDate>Fri, 23 Dec 2011 18:00:00 GMT</pubDate><content:encoded><![CDATA[<p>I recently worked on a side project using node. In the past, I’ve used vows extensively as a testing framework. There are many great things about vows including speed of execution and seemless support for testing asynchronous functions. However, looking back on that project I feel I spent more time debugging vows issues than actually testing/writing my code. I’ve previously used jasmine for in-browser testing and I enjoyed it. I decided to give jasmine-node a try this time around.</p>
+
+<p>The project used express, a micro-framework for building web apps in node. Express is a great library but it wasn’t immediately obvious the best way to test an application using jasmine. I put together a few simple helpers that made the process of testing an express app with jasmine painless.</p>
+
+<h3 id="theapproach">The Approach</h3>
+
+<p>My general approach was straight forward: spin up the express app, use the request library to hit the running server, make assertions and the stop the express app. First, let’s look at the project layout.</p>
+
+<p>The Layout <br>
+The project layout is below, not much more to say here.</p>
+
+<pre><code class="language-bash">example_app  
+|-- lib
+|   `-- app.coffee
+`-- spec
+    |-- app-spec.coffee
+    `-- spec-helper.coffee
+
+2 directories, 3 files  
+</code></pre>
+
+<h3 id="theapp">The App</h3>
+
+<p>Our example app is very simple. It includes two routes, one get and one post. The important piece here is the fact that we export the app for testing and we only start the server if the file is run directly, not when it is required.</p>
+
+<pre><code class="language-coffeescript">express = require 'express'
+
+exports.app = app = express.createServer()
+
+app.get "/", (req, res) -&gt;  
+  res.send "Hello, world!"
+
+app.post "/", (req, res) -&gt;  
+  res.send "You posted!"
+
+if __filename == process.argv[1]  
+  app.listen 6789
+</code></pre>
+
+<h3 id="thespechelper">The Spec Helper</h3>
+
+<p>Now, let’s take a look at the spec helper for our application. It exposes a function called withServer that we’ll use to test our express application. The withServer function creates the server, starts listening, and then calls the provided callback with a nice wrapper around request and a callback that must be called at the end of your spec. withServer also calls asyncSpecWait and the provided callback calls asyncSpecDone.</p>
+
+<pre><code class="language-coffeescript">request = require "request"
+
+class Requester  
+  get: (path, callback) -&gt;
+    request "http://localhost:3000#{path}", callback
+
+  post: (path, body, callback) -&gt;
+    request.post {url: "http://localhost:3000#{path}", body: body}, callback
+
+exports.withServer = (callback) -&gt;  
+  asyncSpecWait()
+
+  {app} = require "../lib/app.coffee"
+
+  stopServer = -&gt;
+    app.close()
+    asyncSpecDone()
+
+  app.listen 3000
+
+  callback new Requester, stopServer
+</code></pre>
+
+<h3 id="thespec">The Spec</h3>
+
+<p>Finally, we’ll take a look at how the withServer function is actually used in a spec.</p>
+
+<pre><code class="language-coffeescript">helper = require './spec-helper'
+
+describe "App", -&gt;  
+  describe "get /", -&gt;
+    it "responds successfully", -&gt;
+      helper.withServer (r, done) -&gt;
+        r.get "/", (err, res, body) -&gt;
+          expect(res.statusCode).toEqual 200
+          done()
+
+    it "has the correct body", -&gt;
+      helper.withServer (r, done) -&gt;
+        r.get "/", (err, res, body) -&gt;
+          expect(body).toEqual "Hello, world!"
+          done()
+
+  describe "post /", -&gt;
+    it "has the correct body", -&gt;
+      helper.withServer (r, done) -&gt;
+        r.post "/", "post body", (err, res, body) -&gt;
+          expect(body).toEqual "You posted!"
+          done()
+</code></pre>
+
+<p>Next time you start a project based on express, consider using this technique to aid testing.</p>]]></content:encoded></item><item><title><![CDATA[Make Your Cucumber Step Definitions Time Aware]]></title><description><![CDATA[<p>If you’re like me, you’ve found yourself with a cucumber step definition like this:</p>
+
+<pre><code class="language-ruby">Given /^I recieved an invitation$/ do  
+  # ...
+end  
+</code></pre>
+
+<p>And you want to write a step definition like this:</p>
+
+<pre><code class="language-ruby">Given /^I recieved an invitation 2 days ago$/ do  
+  # ...
+end  
+</code></pre>
+
+<p>Instead of doing all that extra work,</p>]]></description><link>http://blog.drewolson.org/timebomb/</link><guid isPermaLink="false">67d87b3b-01c1-4d2d-a10f-dc7f8e6729c6</guid><category><![CDATA[ruby]]></category><category><![CDATA[cucumber]]></category><dc:creator><![CDATA[Drew Olson]]></dc:creator><pubDate>Sat, 14 Nov 2009 18:00:00 GMT</pubDate><content:encoded><![CDATA[<p>If you’re like me, you’ve found yourself with a cucumber step definition like this:</p>
+
+<pre><code class="language-ruby">Given /^I recieved an invitation$/ do  
+  # ...
+end  
+</code></pre>
+
+<p>And you want to write a step definition like this:</p>
+
+<pre><code class="language-ruby">Given /^I recieved an invitation 2 days ago$/ do  
+  # ...
+end  
+</code></pre>
+
+<p>Instead of doing all that extra work, I threw together a cucumber step that lets you add times to any existing step definition:</p>
+
+<pre><code class="language-ruby">Given /^(.+) (\d+) (seconds?|minutes?|hours?|days?|months?|years?) (ago|from now)$/ do |string, number, time_unit, time_direction|  
+  Timecop.freeze(number.to_i.send(time_unit).send(time_direction.gsub(' ','_'))) do
+    Given string
+  end
+end  
+</code></pre>
+
+<p>To make things even easier I created a gem called Timebomb. It lets you append time constraints to your cucumber step defintions by mixing and matching:</p>
+
+<ul>
+<li>seconds, minutes, hours, days, weeks, months, years</li>
+<li>ago, from now</li>
+</ul>
+
+<p>So with the following step definition:</p>
+
+<pre><code class="language-ruby">Given /^I recieved an invitation$/ do  
+  # ...
+end  
+</code></pre>
+
+<p>I can write any of the following:</p>
+
+<ul>
+<li>Given I received an invitation 1 day from now</li>
+<li>Given I received an invitation 2 weeks ago</li>
+<li>Given I received an invitation 3 months from now</li>
+<li>Given I received an invitation 15 years ago</li>
+</ul>
+
+<p>Timebomb to the rescue, BOOM!</p>
+
+<h5 id="installing">Installing</h5>
+
+<p>First install Timebomb</p>
+
+<pre><code>gem install timebomb  
+</code></pre>
+
+<p>Now, just require it in your cucumber env.rb file. BOOM goes the dynamite.</p>]]></content:encoded></item></channel></rss>
