@@ -1,4 +1,3 @@
 Feedme
 ======
-
-** TODO: Add description **
+Elixir RSS/Atom parser
