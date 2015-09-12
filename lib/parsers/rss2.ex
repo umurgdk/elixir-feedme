@@ -1,15 +1,7 @@
 defmodule Feedme.Parsers.RSS2 do
-  defmodule FeedMeta do
-    defstruct title: "", link: "", description: ""
-  end
-
-  defmodule FeedEntry do
-    defstruct title: "", link: "", description: ""
-  end
-
-  defmodule Feed do
-    defstruct meta: %FeedMeta{}, entries: []
-  end
+  alias Feedme.Feed
+  alias Feedme.Entry
+  alias Feedme.MetaData
 
   def valid?(document) do
     document
@@ -26,7 +18,7 @@ defmodule Feedme.Parsers.RSS2 do
     link = XmlNode.text_for_node(document, "/rss/channel/link")
     description = XmlNode.text_for_node(document, "/rss/channel/description")
 
-    %FeedMeta{title: title, link: link, description: description}
+    %MetaData{title: title, link: link, description: description}
   end
 
   def parse_entries(document) do
@@ -37,7 +29,7 @@ defmodule Feedme.Parsers.RSS2 do
       link = XmlNode.text_for_node(entry, "link")
       description = XmlNode.text_for_node(entry, "description")
 
-      %FeedEntry{title: title, link: link, description: description}
+      %Entry{title: title, link: link, description: description}
     end
   end
 end

@@ -1,6 +1,18 @@
 defmodule Feedme do
   alias Feedme.Parsers.RSS2
 
+  defmodule MetaData do
+    defstruct title: "", link: "", description: ""
+  end
+
+  defmodule Entry do
+    defstruct title: "", link: "", description: ""
+  end
+
+  defmodule Feed do
+    defstruct meta: %MetaData{}, entries: []
+  end
+
   def parse(feed_url) do
     fetch_document(feed_url)
     |> detect_parser

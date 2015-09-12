@@ -57,17 +57,17 @@ defmodule FeedmeParsersRss2Test do
   test "parse", %{sample1: sample1} do
     feed = RSS2.parse(sample1)
 
-    assert feed == %Feedme.Parsers.RSS2.Feed{
+    assert feed == %Feedme.Feed{
       entries: [
-        %Feedme.Parsers.RSS2.FeedEntry{
+        %Feedme.Entry{
           description: "New RSS tutorial on W3Schools",
           link: "http://www.w3schools.com/webservices", 
           title: "RSS Tutorial"},
-        %Feedme.Parsers.RSS2.FeedEntry{
+        %Feedme.Entry{
           description: "New XML tutorial on W3Schools",
           link: "http://www.w3schools.com/xml", 
           title: "XML Tutorial"}],
-      meta: %Feedme.Parsers.RSS2.FeedMeta{
+      meta: %Feedme.MetaData{
         description: "Free web building tutorials",
         link: "http://www.w3schools.com", 
         title: "W3Schools Home Page"}}
