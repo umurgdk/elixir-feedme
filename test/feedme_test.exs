@@ -2,7 +2,6 @@ defmodule FeedmeTest do
   use ExUnit.Case, async: false
 
   import Mock
-  alias Feedme.Parsers.RSS2
 
   setup do
     wrong = XmlNode.from_file("test/fixtures/wrong.xml")

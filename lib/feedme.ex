@@ -1,16 +1,58 @@
 defmodule Feedme do
   alias Feedme.Parsers.RSS2
 
+  defmodule Image do
+    defstruct title: nil,
+              url: nil,
+              link: nil,
+              width: nil,
+              height: nil,
+              description: nil
+  end
+
+  defmodule Enclosure do
+    defstruct url: nil,
+              length: nil,
+              type: nil
+  end
+
   defmodule MetaData do
-    defstruct title: "", link: "", description: ""
+    defstruct title: nil,
+              link: nil,
+              description: nil,
+              language: nil,
+              copyright: nil,
+              publication_date: nil,
+              last_build_date: nil,
+              generator: nil,
+              category: nil,
+              rating: nil,
+              docs: nil,
+              cloud: nil,
+              ttl: nil,
+              managing_editor: nil,
+              web_master: nil,
+              skip_hours: [],
+              skip_days: [],
+              image: nil
   end
 
   defmodule Entry do
-    defstruct title: "", link: "", description: ""
+    defstruct title: nil,
+              link: nil,
+              description: nil,
+              author: nil,
+              categories: [],
+              comments: nil,
+              enclosure: nil,
+              guid: nil,
+              publication_date: nil,
+              source: nil
   end
 
   defmodule Feed do
-    defstruct meta: %MetaData{}, entries: []
+    defstruct meta: nil, 
+              entries: nil
   end
 
   def parse(feed_url) do

@@ -4,6 +4,21 @@
         <title>W3Schools Home Page</title>
         <link>http://www.w3schools.com</link>
         <description>Free web building tutorials</description>
+        <skipHours>
+            <hour>1</hour>
+            <hour>2</hour>
+        </skipHours>
+        <skipDays>
+            <day>1</day>
+            <day>2</day>
+        </skipDays>
+        <pubDate>Sat, 15 Aug 2015 09:54:05 +0000</pubDate>
+        <lastBuildDate>Sat, 16 Aug 2015 09:54:05 +0000</lastBuildDate>
+        <image>
+            <title>Test Image</title>
+            <description>test image...</description>
+            <url>http://localhost/image</url>
+        </image>
         <item>
             <title>RSS Tutorial</title>
             <link>http://www.w3schools.com/webservices</link>

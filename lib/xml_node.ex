@@ -24,11 +24,27 @@ defmodule XmlNode do
     end
   end
 
+  def all_try(_, []), do: []
+  def all_try(node, [path | rest]) do
+    case all(node, path) do
+      [] -> all_try(node, rest)
+      children -> children
+    end
+  end
+
   def first(node, path), do: node |> xpath(path) |> take_one
   defp take_one([head | _]), do: head
   defp take_one(_), do: nil
 
+  def first_try(_, []), do: nil
+  def first_try(node, [path | rest]) do
+    first(node, path) || first_try(node, rest)
+  end
+
   def text_for_node(node, path), do: first(node, path) |> text
+
+  def text_for_node_try(_, []), do: nil
+  def text_for_node_try(node, [first | rest]), do: text_for_node(node, first) || text_for_node_try(node, rest)
 
   def node_name(nil), do: nil
   def node_name(node), do: elem(node, 1)
@@ -40,6 +56,19 @@ defmodule XmlNode do
   def text(node), do: node |> xpath('./text()') |> extract_text
   defp extract_text([xmlText(value: value)]), do: List.to_string(value)
   defp extract_text(_x), do: nil
+
+
+  def children_map(node, [path | rest], callback) do
+    all_try(node, path) |> Enum.map(callback)
+  end
+
+  def children_map(node, selector, callback) when is_binary(selector) do
+    all(node, selector) |> Enum.map(callback)
+  end
+
+  def integer(node) do
+    node |> text |> String.to_integer
+  end
 
   defp xpath(nil, _), do: []
   defp xpath(node, path) do
