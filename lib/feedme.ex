@@ -1,5 +1,6 @@
 defmodule Feedme do
   alias Feedme.Parsers.RSS2
+  alias Feedme.Parsers.Atom
 
   defmodule Image do
     defstruct title: nil,
@@ -20,6 +21,7 @@ defmodule Feedme do
     defstruct title: nil,
               link: nil,
               description: nil,
+              author: nil,
               language: nil,
               copyright: nil,
               publication_date: nil,
@@ -55,13 +57,7 @@ defmodule Feedme do
               entries: nil
   end
 
-  def parse(feed_url) do
-    fetch_document(feed_url)
-    |> detect_parser
-    |> parse_document
-  end
-
-  def parse_string(xml) do
+  def parse(xml) do
     {:ok, XmlNode.from_string(xml)}
     |> detect_parser
     |> parse_document
@@ -76,16 +72,10 @@ defmodule Feedme do
   defp detect_parser({:ok, document}) do
     cond do
       RSS2.valid?(document) -> {:ok, RSS2, document}
+      Atom.valid?(document) -> {:ok, Atom, document}
       true -> {:error, "Feed format not valid"}
     end
   end
 
   defp detect_parser(other), do: other
-
-  defp fetch_document(url) do
-    case HTTPoison.get(url) do
-      {:ok, %HTTPoison.Response{body: body, status_code: 200}} -> {:ok, XmlNode.from_string(body)}
-      {_, other} -> {:error, other}
-    end
-  end
 end

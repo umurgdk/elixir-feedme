@@ -28,10 +28,7 @@ defmodule Feedme.Mixfile do
   # Type `mix help deps` for more examples and options
   defp deps do
     [
-      {:sweet_xml, "~> 0.3.0"},
       {:mix_test_watch, "~> 0.2", only: :dev},
-      {:apex, "~>0.3.2"},
-      {:httpoison, "~> 0.7.3"},
       {:mock, "~> 0.1.1"},
       {:timex, "~> 0.19.2"}
     ]
