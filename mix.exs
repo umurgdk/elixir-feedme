@@ -5,6 +5,8 @@ defmodule Feedme.Mixfile do
     [app: :feedme,
      version: "0.0.1",
      elixir: "~> 1.0",
+     description: "Elixir RSS/Atom parser built on erlang's xmerl xml parser",
+     package: package,
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
      deps: deps]
@@ -15,6 +17,14 @@ defmodule Feedme.Mixfile do
   # Type `mix help compile.app` for more information
   def application do
     [applications: [:logger, :tzdata]]
+  end
+
+  # Describe Hex.pm package
+  def package do
+    [
+      licenses: ["MIT"],
+      links: %{"GitHub" => "https://github.com/umurgdk/elixir-feedme"}
+    ]
   end
 
   # Dependencies can be Hex packages:
