@@ -1,4 +1,4 @@
-defmodule FeedmeParsersRss2Test do
+defmodule Feedme.Test.Parsers.RSS2 do
   use ExUnit.Case
   
   alias Feedme.Parsers.RSS2
