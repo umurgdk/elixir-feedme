@@ -28,8 +28,8 @@ defmodule Feedme.Mixfile do
   # Type `mix help deps` for more examples and options
   defp deps do
     [
-      {:mix_test_watch, "~> 0.2", only: :dev},
-      {:mock, "~> 0.1.1", only: :dev},
+      {:mix_test_watch, "~> 0.2", only: :test},
+      {:mock, "~> 0.1.1", only: :test},
       {:timex, "~> 0.19.2"}
     ]
   end
