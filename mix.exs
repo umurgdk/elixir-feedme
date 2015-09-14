@@ -14,7 +14,7 @@ defmodule Feedme.Mixfile do
   #
   # Type `mix help compile.app` for more information
   def application do
-    [applications: [:logger, :httpoison, :tzdata]]
+    [applications: [:logger, :tzdata]]
   end
 
   # Dependencies can be Hex packages:
@@ -29,7 +29,7 @@ defmodule Feedme.Mixfile do
   defp deps do
     [
       {:mix_test_watch, "~> 0.2", only: :dev},
-      {:mock, "~> 0.1.1"},
+      {:mock, "~> 0.1.1", only: :dev},
       {:timex, "~> 0.19.2"}
     ]
   end
