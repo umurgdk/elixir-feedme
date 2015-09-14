@@ -4,7 +4,7 @@ Elixir RSS/Atom parser built on erlang's **xmerl** xml parser. It uses [timex](h
 
 ## Setup
 
-Add *feedme* into your mix dependencies and applications:
+Add **feedme** into your mix dependencies and applications:
 
 ```elixir
 def application do
@@ -69,5 +69,5 @@ Feedme expose only one function named ```parse/1```. Parse function detects the 
 
 ## ToDo
 
-[ ] Rss+Atom parser
-[ ] FeedBurner support
+- [ ] Rss+Atom parser
+- [ ] FeedBurner support
