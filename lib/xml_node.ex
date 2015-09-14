@@ -3,6 +3,7 @@ defmodule XmlNode do
   Record.defrecord :xmlAttribute, Record.extract(:xmlAttribute, from_lib: "xmerl/include/xmerl.hrl")
   Record.defrecord :xmlText, Record.extract(:xmlText, from_lib: "xmerl/include/xmerl.hrl")
   Record.defrecord :xmlElement, Record.extract(:xmlElement, from_lib: "xmerl/include/xmerl.hrl")
+  Record.defrecord :xmlNamespace, Record.extract(:xmlNamespace, from_lib: "xmerl/include/xmerl.hrl")
 
   def from_file(file_path, options \\ [quiet: true]) do
     {doc, []} = :xmerl_scan.file(file_path, options)
@@ -17,6 +18,11 @@ defmodule XmlNode do
 
     doc
   end
+
+  def namespace(xmlElement(namespace: xmlNamespace(default: namespace))) do
+    Atom.to_string namespace
+  end
+  def namespace(_), do: nil
 
   def all(node, path) do
     for child_element <- xpath(node, path) do
