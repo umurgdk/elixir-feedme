@@ -14,7 +14,7 @@ def application do
 end
 
 defp deps do
-  [{:feedme, "~> 0.1.1"}]
+  [{:feedme, "~> 0.0.1"}]
 end
 ```
 Then run ```mix deps.get``` to install feedme.
