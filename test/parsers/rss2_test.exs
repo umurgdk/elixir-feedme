@@ -1,6 +1,7 @@
 defmodule Feedme.Test.Parsers.RSS2 do
   use ExUnit.Case
   
+  alias Feedme.XmlNode
   alias Feedme.Parsers.RSS2
 
   setup do

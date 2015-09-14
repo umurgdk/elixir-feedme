@@ -1,4 +1,4 @@
-defmodule XmlNode do
+defmodule Feedme.XmlNode do
   require Record
   Record.defrecord :xmlAttribute, Record.extract(:xmlAttribute, from_lib: "xmerl/include/xmerl.hrl")
   Record.defrecord :xmlText, Record.extract(:xmlText, from_lib: "xmerl/include/xmerl.hrl")

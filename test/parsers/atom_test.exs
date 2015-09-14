@@ -1,6 +1,7 @@
 defmodule Feedme.Test.Parsers.Atom do
   use ExUnit.Case
   
+  alias Feedme.XmlNode
   alias Feedme.Parsers.Atom
 
   setup do

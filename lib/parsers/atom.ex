@@ -1,6 +1,7 @@
 defmodule Feedme.Parsers.Atom do
   import Feedme.Parsers.Helpers
 
+  alias Feedme.XmlNode
   alias Feedme.Feed
   alias Feedme.Entry
   alias Feedme.MetaData

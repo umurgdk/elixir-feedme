@@ -1,6 +1,8 @@
 defmodule FeedmeTest do
   use ExUnit.Case, async: false
 
+  alias Feedme.XmlNode
+
   import Mock
 
   setup do

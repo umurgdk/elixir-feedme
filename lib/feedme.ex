@@ -1,4 +1,5 @@
 defmodule Feedme do
+  alias Feedme.XmlNode
   alias Feedme.Parsers.RSS2
   alias Feedme.Parsers.Atom
 

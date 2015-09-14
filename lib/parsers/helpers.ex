@@ -1,4 +1,5 @@
 defmodule Feedme.Parsers.Helpers do
+  alias Feedme.XmlNode
   alias Timex.DateFormat
 
   def parse_datetime(node), do: parse_datetime(node, "{RFC1123}")
