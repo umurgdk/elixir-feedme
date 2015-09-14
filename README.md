@@ -1,5 +1,7 @@
 Feedme
 ======
+[![Build Status](https://travis-ci.org/umurgdk/elixir-feedme.svg?branch=master)](https://travis-ci.org/umurgdk/elixir-feedme)
+
 Elixir RSS/Atom parser built on erlang's **xmerl** xml parser. It uses [timex](https://github.com/bitwalker/timex) for parsing dates.
 
 ## Setup
