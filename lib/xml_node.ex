@@ -64,8 +64,8 @@ defmodule XmlNode do
   defp extract_text(_x), do: nil
 
 
-  def children_map(node, [path | rest], callback) do
-    all_try(node, path) |> Enum.map(callback)
+  def children_map(node, paths, callback) when is_list(paths) do
+    all_try(node, paths) |> Enum.map(callback)
   end
 
   def children_map(node, selector, callback) when is_binary(selector) do

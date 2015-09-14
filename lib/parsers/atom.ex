@@ -14,7 +14,7 @@ defmodule Feedme.Parsers.Atom do
   end
 
   def parse(document) do
-    %Feedme.Feed{meta: parse_meta(document), entries: parse_entries(document)}
+    %Feed{meta: parse_meta(document), entries: parse_entries(document)}
   end
 
   def parse_meta(document) do
