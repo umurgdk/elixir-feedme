@@ -6,7 +6,7 @@ defmodule Feedme.Parsers.Atom do
   alias Feedme.Entry
   alias Feedme.MetaData
 
-  @date_format "{ISOz}"
+  @date_format "{RFC3339}"
 
   def valid?(document) do
     document
