@@ -1,6 +1,6 @@
 defmodule Feedme.Test.Parsers.RSS2 do
   use ExUnit.Case
-  
+
   alias Feedme.XmlNode
   alias Feedme.Parsers.RSS2
 
@@ -33,28 +33,32 @@ defmodule Feedme.Test.Parsers.RSS2 do
         description: "test image...",
         url: "http://localhost/image"
       },
-      last_build_date: %Timex.DateTime{
-        calendar: :gregorian, day: 16,
-        hour: 9, minute: 54, month: 8, ms: 0, second: 5,
-        timezone: %Timex.TimezoneInfo{
-          abbreviation: "UTC", from: :min,
-          full_name: "UTC",
-          offset_std: 0,
-          offset_utc: 0,
-          until: :max},
-        year: 2015},
-      publication_date: %Timex.DateTime{
-        calendar: :gregorian,
+      last_build_date: %DateTime{
+        calendar: Calendar.ISO,
+        day: 16,
+        hour: 9,
+        microsecond: {0, 0},
+        minute: 54,
+        month: 8,
+        second: 5,
+        std_offset: 0,
+        time_zone: "Etc/GMT-0",
+        utc_offset: 0,
+        zone_abbr: "GMT-0",
+        year: 2015
+      },
+      publication_date: %DateTime{
+        calendar: Calendar.ISO,
         day: 15,
-        hour: 9, minute: 54, month: 8, ms: 0, second: 5,
-        timezone: %Timex.TimezoneInfo{
-          abbreviation: "UTC",
-          from: :min,
-          full_name: "UTC",
-          offset_std: 0,
-          offset_utc: 0,
-          until: :max
-        },
+        hour: 9,
+        microsecond: {0, 0},
+        minute: 54,
+        month: 8,
+        second: 5,
+        std_offset: 0,
+        time_zone: "Etc/GMT-0",
+        utc_offset: 0,
+        zone_abbr: "GMT-0",
         year: 2015
       }
     }
@@ -71,14 +75,18 @@ defmodule Feedme.Test.Parsers.RSS2 do
       title: "collect {thoughts}",
       ttl: "60",
       generator: "Ghost 0.6",
-      last_build_date: %Timex.DateTime{
-        calendar: :gregorian, 
+      last_build_date: %DateTime{
+        calendar: Calendar.ISO,
         day: 28,
-        hour: 18, minute: 56, month: 8, ms: 0, second: 0,
-        timezone: %Timex.TimezoneInfo{
-          abbreviation: "UTC", from: :min,
-          full_name: "UTC", offset_std: 0, offset_utc: 0, until: :max
-        },
+        hour: 18,
+        microsecond: {0, 0},
+        minute: 56,
+        month: 8,
+        second: 0,
+        std_offset: 0,
+        time_zone: "GMT",
+        utc_offset: 0,
+        zone_abbr: "GMT",
         year: 2015
       }
     }
@@ -101,22 +109,18 @@ defmodule Feedme.Test.Parsers.RSS2 do
         length: "12216320",
         type: "audio/mpeg"
       },
-      publication_date: %Timex.DateTime{
-        calendar: :gregorian,
+      publication_date: %DateTime{
+        calendar: Calendar.ISO,
         day: 8,
         hour: 13,
+        microsecond: {0, 0},
         minute: 43,
         month: 6,
-        ms: 0,
         second: 5,
-        timezone: %Timex.TimezoneInfo{
-          abbreviation: "UTC",
-          from: :min,
-          full_name: "UTC",
-          offset_std: 0,
-          offset_utc: 0,
-          until: :max
-        },
+        std_offset: 0,
+        time_zone: "GMT",
+        utc_offset: 0,
+        zone_abbr: "GMT",
         year: 2015
       },
       source: nil,
@@ -126,7 +130,7 @@ defmodule Feedme.Test.Parsers.RSS2 do
 
   test "parse_entries", %{sample1: sample1, sample2: sample2} do
     [item1, item2] = RSS2.parse_entries(sample1)
-    
+
     assert item1.title == "RSS Tutorial"
     assert item1.link == "http://www.w3schools.com/webservices"
     assert item1.description == "New RSS tutorial on W3Schools"
@@ -136,7 +140,7 @@ defmodule Feedme.Test.Parsers.RSS2 do
     assert item2.description == "New XML tutorial on W3Schools"
 
     [item1, item2] = RSS2.parse_entries(sample2)
-    
+
     assert item1.title == nil
     assert item1.link == "http://www.w3schools.com/webservices"
     assert item1.description == nil
@@ -153,15 +157,15 @@ defmodule Feedme.Test.Parsers.RSS2 do
       entries: [
         %Feedme.Entry{
           description: "New RSS tutorial on W3Schools",
-          link: "http://www.w3schools.com/webservices", 
+          link: "http://www.w3schools.com/webservices",
           title: "RSS Tutorial"},
         %Feedme.Entry{
           description: "New XML tutorial on W3Schools",
-          link: "http://www.w3schools.com/xml", 
+          link: "http://www.w3schools.com/xml",
           title: "XML Tutorial"}],
       meta: %Feedme.MetaData{
         description: "Free web building tutorials",
-        link: "http://www.w3schools.com", 
+        link: "http://www.w3schools.com",
         title: "W3Schools Home Page",
         skip_days: [1,2],
         skip_hours: [1,2],
@@ -170,28 +174,32 @@ defmodule Feedme.Test.Parsers.RSS2 do
           description: "test image...",
           url: "http://localhost/image"
         },
-        last_build_date: %Timex.DateTime{
-          calendar: :gregorian, day: 16,
-          hour: 9, minute: 54, month: 8, ms: 0, second: 5,
-          timezone: %Timex.TimezoneInfo{
-            abbreviation: "UTC", from: :min,
-            full_name: "UTC",
-            offset_std: 0,
-            offset_utc: 0,
-            until: :max},
-          year: 2015},
-        publication_date: %Timex.DateTime{
-          calendar: :gregorian,
+        last_build_date: %DateTime{
+          calendar: Calendar.ISO,
+          day: 16,
+          hour: 9,
+          microsecond: {0, 0},
+          minute: 54,
+          month: 8,
+          second: 5,
+          std_offset: 0,
+          time_zone: "Etc/GMT-0",
+          utc_offset: 0,
+          zone_abbr: "GMT-0",
+          year: 2015
+        },
+        publication_date: %DateTime{
+          calendar: Calendar.ISO,
           day: 15,
-          hour: 9, minute: 54, month: 8, ms: 0, second: 5,
-          timezone: %Timex.TimezoneInfo{
-            abbreviation: "UTC",
-            from: :min,
-            full_name: "UTC",
-            offset_std: 0,
-            offset_utc: 0,
-            until: :max
-          },
+          hour: 9,
+          microsecond: {0, 0},
+          minute: 54,
+          month: 8,
+          second: 5,
+          std_offset: 0,
+          time_zone: "Etc/GMT-0",
+          utc_offset: 0,
+          zone_abbr: "GMT-0",
           year: 2015
         }
       }
