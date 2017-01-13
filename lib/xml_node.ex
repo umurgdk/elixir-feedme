@@ -60,8 +60,13 @@ defmodule Feedme.XmlNode do
   defp extract_attr(_), do: nil
 
   def text(node), do: node |> xpath('./text()') |> extract_text
-  defp extract_text([xmlText(value: value)]), do: List.to_string(value)
-  defp extract_text(_x), do: nil
+  defp extract_text(fragments) do
+    strings = Enum.map(fragments, fn(fragment) ->
+                xmlText(value: v) = fragment
+                List.to_string(v)
+              end)
+    Enum.join(strings, "")
+  end
 
 
   def children_map(node, paths, callback) when is_list(paths) do
